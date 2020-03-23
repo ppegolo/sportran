@@ -5,15 +5,7 @@ log = PrintMethod()
 import sys
 import os
 import math
-import os.path
 import thermocepstrum as tc
-
-abs_path = os.path.abspath(sys.argv[0])
-tc_path = abs_path[:abs_path.rfind('/')]
-tc_path = tc_path[:tc_path.rfind('/')]
-sys.path.append(tc_path[:tc_path.rfind('/')])
-log.write_log(tc_path)
-
 import numpy as np
 import scipy as sp
 import scipy.stats
@@ -21,15 +13,27 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-#plt.rcParams['figure.figsize'] = (16, 9)
-plt.style.reload_library()
-try:
-    plt.style.use('./plot_style.mplstyle')
-except:
-    plt.style.use(tc_path + 'utils/plot_style.mplstyle')
-#plt.rc('text', usetex=True)
-c = plt.rcParams['axes.prop_cycle'].by_key()['color']
 from matplotlib.ticker import MultipleLocator
+
+try:
+    import pkg_resources
+    pltstyle_filename = pkg_resources.resource_filename('thermocepstrum.utils', 'plot_style.mplstyle')
+except:
+    # fallback (maybe it is not installed...)
+    try:
+        abs_path = os.path.abspath(__file__)
+        tc_path = abs_path[:abs_path.rfind('/')]
+        path.append(tc_path[:tc_path.rfind('/')])
+    except:
+        abs_path = '.'
+    pltstyle_filename = tc_path + '/utils/plot_style.mplstyle'
+try:
+    plt.style.use(pltstyle_filename)
+except:
+    pass
+
+c = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
 
 try:
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes

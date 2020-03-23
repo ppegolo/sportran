@@ -32,6 +32,11 @@
             "pre-commit>1.11.0",
             "yapf>0.24.0"
         ],
+        "docs": [
+            "recommonmark",
+            "sphinx-rtd-theme",
+            "sphinx"
+        ],
         "notebook": [
             "jupyter==1.0.0"
         ],
