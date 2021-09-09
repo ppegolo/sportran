@@ -127,6 +127,11 @@ class CosFilter(object):
             self.aic = aic.dct_AIC(self.logpsdK, ck_theory_var)
         elif (aic_type == 'aicc'):
             self.aic = aic.dct_AICc(self.logpsdK, ck_theory_var)
+        elif (aic_type == 'mse' or aic_type == 'MSE'):
+            _aic = aic.dct_AIC(self.logpsdK, ck_theory_var)
+            _aic_Kmin = int(round(np.argmin(_aic) * Kmin_corrfactor))
+
+            self.aic, self.ck_slope, self.ck_intercept = aic.dct_MSE(self.logpsdK, ck_theory_var, psd_theory_mean, _aic_Kmin)
         else:
             raise ValueError('AIC type not valid.')
         self.aic_type = aic_type

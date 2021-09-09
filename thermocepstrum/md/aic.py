@@ -2,6 +2,61 @@
 
 import numpy as np
 
+########################################################################################################################
+# Minimize the Mean Square Error MSE[L_0^*] = bias[L_0^*]**2 + Var[L_0^*]
+
+def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None):
+    
+    from scipy.special import zeta
+    from scipy.optimize import curve_fit
+    from scipy.stats import linregress
+
+    eulergamma = 0.57721566490153286060651209008240243104215933593992
+    N = 2 * (ck.size - 1)
+
+    if theory_var is None:
+        theory_var = np.pi**2 / 6. / N   # otherwise
+    else:
+        theory_var = theory_var[1]
+
+    if theory_mean is None:
+        theory_mean = -eulergamma
+    else:
+        theory_mean = theory_mean[1]
+
+    C0 = ck[0]
+
+    #print('ck = ', ck[:20])
+    #print('var = ', theory_var, theory_var*N)
+    #print('mean = ', theory_mean)
+    #print('C0 = ', C0)
+
+    #def pow_decay(x, b):
+    #    return C0*(x+1)**b
+    #x = np.arange(len(ck))
+    #popt, pcov = curve_fit(pow_decay, x, np.abs(ck), p0 = [-1])
+
+    #B = -popt[0]
+    #print('B = {} +\- {}'.format(B, pcov[0,0]))
+
+    if init_pstar is None:
+        init_pstar = 100
+
+    where = slice(0, init_pstar)
+    n = np.arange(len(ck))
+    xf = np.log(n+1)[where]
+    yf = np.log(np.abs(ck))[where]
+    slope, intercept, r, p, se = linregress(xf, yf)
+    print('B = {:.2e} +\- {:.2e}'.format(slope, se))
+    print('r-value = {:.2e}'.format(r))
+    B = -slope
+
+    pstar = np.arange(len(ck))
+    var = theory_var * (4*pstar-3)
+    bias = theory_mean - C0*((1+N/2)**slope + 2*zeta(B, 1+pstar) - 2*zeta(B, 1+N/2))
+    return bias**2 + var, slope, intercept
+
+########################################################################################################################
 
 def dct_AIC(yk, theory_var=None):
     """AIC[K] = sum_{k>K} c_k^2/theory_var + 2*(K+1)
