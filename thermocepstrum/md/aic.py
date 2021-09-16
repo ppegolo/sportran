@@ -5,7 +5,7 @@ import numpy as np
 ########################################################################################################################
 # Minimize the Mean Square Error MSE[L_0^*] = bias[L_0^*]**2 + Var[L_0^*]
 
-def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None):
+def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cosexp', acf = None, dt = None):
     
     from scipy.special import zeta
     from scipy.optimize import curve_fit
@@ -26,35 +26,111 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None):
 
     C0 = ck[0]
 
-    #print('ck = ', ck[:20])
-    #print('var = ', theory_var, theory_var*N)
-    #print('mean = ', theory_mean)
-    #print('C0 = ', C0)
-
-    #def pow_decay(x, b):
-    #    return C0*(x+1)**b
-    #x = np.arange(len(ck))
-    #popt, pcov = curve_fit(pow_decay, x, np.abs(ck), p0 = [-1])
-
-    #B = -popt[0]
-    #print('B = {} +\- {}'.format(B, pcov[0,0]))
-
     if init_pstar is None:
         init_pstar = 100
-
-    where = slice(0, init_pstar)
-    n = np.arange(len(ck))
-    xf = np.log(n+1)[where]
-    yf = np.log(np.abs(ck))[where]
-    slope, intercept, r, p, se = linregress(xf, yf)
-    print('B = {:.2e} +\- {:.2e}'.format(slope, se))
-    print('r-value = {:.2e}'.format(r))
-    B = -slope
-
+    
     pstar = np.arange(len(ck))
     var = theory_var * (4*pstar-3)
-    bias = theory_mean - C0*((1+N/2)**slope + 2*zeta(B, 1+pstar) - 2*zeta(B, 1+N/2))
-    return bias**2 + var, slope, intercept
+
+    if decay == 'power law':
+        where = slice(0, init_pstar)
+        n = np.arange(len(ck))
+        xf = np.log(n+1)[where]
+        yf = np.log(np.abs(ck))[where]
+        slope, intercept, r, p, se = linregress(xf, yf)
+        print('B = {:.2e} +\- {:.2e}'.format(slope, se))
+        print('r-value = {:.2e}'.format(r))
+        B = -slope
+
+        bias = theory_mean - C0*((1+N/2)**slope + 2*zeta(B, 1+pstar) - 2*zeta(B, 1+N/2))
+        
+        fit_variables = {'slope': slope, 'intercept': intercept}
+    
+    elif decay == 'exp':
+        if acf is None or dt is None:
+        
+            raise ValueError('`acf` and `dt` must be provided to estimate the cepstral coefficients decay with the `exp` method.')
+        
+        else:
+            
+            def expd(t, R0, tau):
+                return R0*np.exp(-np.abs(t)/tau)
+            def ck_exp(n, beta):
+                from numpy import pi, exp
+                n = np.asarray(n)
+                output = np.full(n.shape, np.inf)
+                n_ = n[n != 0]
+                output[n != 0] = exp(-beta*n_)/n_ + (-1)**(n_+1)*2/n_**2/(pi**2+beta**2)
+                return output
+
+            time = np.arange(len(acf))*dt
+
+            try:
+                popt, pcov = curve_fit(expd, time, acf, p0 = [acf[0], 1000.]) # TODO: find a way to make a good guess on the parameters (Hilbert transform?)
+            except:
+                raise ValueError('Parameters of the `exp` method cannot be estimated.')
+            R0 = popt[0]
+            tau = popt[1]
+
+            beta  = dt/tau
+
+            n = np.arange(len(ck))
+            print(R0, tau, beta)
+            to_sum = ck_exp(n, beta)
+            bias = np.flip(np.cumsum(np.flip(to_sum))) + ck_exp(N//2, beta)
+
+            fit_variables = {'R0': R0, 'tau': tau}
+
+    elif decay == 'cosexp':
+        if acf is None or dt is None:
+        
+            raise ValueError('`acf` and `dt` must be provided to estimate the cepstral coefficients decay with the `cosexp` method.')
+        
+        else:
+            
+            def cosexp(t, R0, tau, f0):
+                return R0*np.cos(2*np.pi*f0*t)*np.exp(-np.abs(t)/tau)
+            def ck_cosexp(n, alpha, beta):
+                n = np.asarray(n)
+                output = np.full(n.shape, np.inf)
+                n_ = n[n != 0]
+                output[n != 0] = (1+np.cos(alpha*n_)*np.cosh(beta*n_))/n_
+                return output
+
+            time = np.arange(len(acf))*dt
+
+            from scipy.signal import hilbert
+            analytic_signal = hilbert(acf)
+            amplitude_envelope = np.abs(analytic_signal)
+            instantaneous_phase = np.unwrap(np.angle(analytic_signal))
+            instantaneous_frequency = (np.diff(instantaneous_phase)/(2.0*np.pi)/dt)
+
+            slope, intercept, rval, pval, stderr = linregress(time, amplitude_envelope)
+            tau = -1/slope
+            f0 = instantaneous_frequency.mean()
+
+            try:
+                popt, pcov = curve_fit(cosexp, time, acf, p0 = [acf[0], tau, f0]) # TODO: find a way to make a good guess on the parameters (Hilbert transform?)
+            except:
+                raise ValueError('Parameters of the `cosexp` method cannot be estimated.')
+            R0 = popt[0]
+            tau = popt[1]
+            f0 = popt[2]
+
+            alpha = 2*np.pi*f0*dt
+            beta  = dt/tau
+
+            n = np.arange(len(ck))
+            print(R0, tau, f0, alpha, beta)
+            to_sum = ck_cosexp(n, alpha, beta)
+            bias = np.flip(np.cumsum(np.flip(to_sum))) + ck_cosexp(N//2, alpha, beta)
+
+            fit_variables = {'R0': R0, 'tau': tau, 'f0': f0}
+    
+    else:
+        raise ValueError('The variable `decay` must either be equal to "cosexp" (default) or "power law".')
+
+    return bias**2 + var, fit_variables
 
 ########################################################################################################################
 

@@ -6,6 +6,7 @@ from scipy.fftpack import dct
 from .tools.spectrum import logtau_to_tau
 from . import aic
 from thermocepstrum.utils import log
+from .tools.acf import acovf
 
 __all__ = ('CosFilter',)
 
@@ -100,7 +101,7 @@ class CosFilter(object):
     p_aic... = Bayesian AIC weighting stuff
     """
 
-    def __init__(self, samplelogpsd, ck_theory_var=None, psd_theory_mean=None, aic_type='aic', Kmin_corrfactor=1.0):
+    def __init__(self, samplelogpsd, ck_theory_var=None, psd_theory_mean=None, aic_type='aic', Kmin_corrfactor=1.0, decay='cosexp',traj=None, dt=None):
 
         NF = samplelogpsd.size
         N = 2 * (NF - 1)
@@ -128,10 +129,22 @@ class CosFilter(object):
         elif (aic_type == 'aicc'):
             self.aic = aic.dct_AICc(self.logpsdK, ck_theory_var)
         elif (aic_type == 'mse' or aic_type == 'MSE'):
+            _acf = np.zeros(traj.shape)
+            for d in range(traj.shape[1]):
+                _acf[:, d] = acovf(traj[:, d],
+                                   unbiased = True,
+                                   fft = True)
+            _acf = np.mean(_acf, axis = 1)
             _aic = aic.dct_AIC(self.logpsdK, ck_theory_var)
             _aic_Kmin = int(round(np.argmin(_aic) * Kmin_corrfactor))
 
-            self.aic, self.ck_slope, self.ck_intercept = aic.dct_MSE(self.logpsdK, ck_theory_var, psd_theory_mean, _aic_Kmin)
+            self.aic, self.fit_parameters = aic.dct_MSE(self.logpsdK,
+                                                        theory_var = ck_theory_var,
+                                                        theory_mean = psd_theory_mean,
+                                                        init_pstar = _aic_Kmin,
+                                                        decay = decay,
+                                                        acf = _acf,
+                                                        dt = dt) 
         else:
             raise ValueError('AIC type not valid.')
         self.aic_type = aic_type
