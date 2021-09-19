@@ -95,7 +95,7 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
                 n_ = np.asarray(n)
                 output = np.full(n_.shape, np.inf)
                 n = n_[n_ != 0]
-                output[n_ != 0] = (2*exp(-n*eps/tau) * cos(2*pi*f0*n*eps) - exp(-n*eps/tau*sqrt(1 + (2*pi*tau*f0)**2)))/(2*n)*2*pi
+                output[n_ != 0] = (2*exp(-n*eps/tau) * cos(2*pi*f0*n*eps) - exp(-n*eps/tau*sqrt(1 + (2*pi*tau*f0)**2)))/n
                 return output
             #def ck_cosexp(n, alpha, beta):
             #    n = np.asarray(n)
