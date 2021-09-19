@@ -77,7 +77,7 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
             n = np.arange(len(ck))
             print(R0, tau, beta)
             to_sum = ck_exp(n, beta)
-            bias = np.flip(np.cumsum(np.flip(to_sum))) + ck_exp(N//2, beta)
+            bias = theory_mean - np.flip(np.cumsum(np.flip(to_sum))) - ck_exp(N//2, beta)
 
             fit_variables = {'R0': R0, 'tau': tau}
 
@@ -90,47 +90,66 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
             
             def cosexp(t, R0, tau, f0):
                 return R0*np.cos(2*np.pi*f0*t)*np.exp(-np.abs(t)/tau)
-            def ck_cosexp(n, alpha, beta):
-                n = np.asarray(n)
-                output = np.full(n.shape, np.inf)
-                n_ = n[n != 0]
-                output[n != 0] = (1+np.cos(alpha*n_)*np.cosh(beta*n_))/n_
+            def ck_cosexp(n, eps, tau, f0):
+                from numpy import exp, pi, cos, sqrt
+                n_ = np.asarray(n)
+                output = np.full(n_.shape, np.inf)
+                n = n_[n_ != 0]
+                output[n_ != 0] = (2*exp(-n*eps/tau) * cos(2*pi*f0*n*eps) - exp(-n*eps/tau*sqrt(1 + (2*pi*tau*f0)**2)))/(2*n)*2*pi
                 return output
+            #def ck_cosexp(n, alpha, beta):
+            #    n = np.asarray(n)
+            #    output = np.full(n.shape, np.inf)
+            #    n_ = n[n != 0]
+            #    output[n != 0] = (1+np.cos(alpha*n_)*np.cosh(beta*n_))/n_
+            #    return output
 
-            time = np.arange(len(acf))*dt
+            dt_ps = dt/1000
+            time = np.arange(len(acf))*dt_ps
+            time = time[time<=100]
 
             from scipy.signal import hilbert
             analytic_signal = hilbert(acf)
             amplitude_envelope = np.abs(analytic_signal)
             instantaneous_phase = np.unwrap(np.angle(analytic_signal))
-            instantaneous_frequency = (np.diff(instantaneous_phase)/(2.0*np.pi)/dt)
+            instantaneous_frequency = (np.diff(instantaneous_phase)/(2.0*np.pi)/dt_ps)
 
-            slope, intercept, rval, pval, stderr = linregress(time, amplitude_envelope)
-            tau = -1/slope
+            envf = amplitude_envelope[:len(time)]
+            print (time.shape, envf.shape)
+
+            def exp_decay(t, tau):
+                return np.exp(-t/tau)
+            popt, pcov = curve_fit(exp_decay, time, envf/envf[0], p0 = [1])
+            tau = popt[0]
             f0 = instantaneous_frequency.mean()
+            print('Guess for tau: {:.2e} +/- {:.2e} ps'.format(tau, pcov[0,0]))
+            print('Guess for f0: {:.2e} THz'.format(f0))
 
             try:
-                popt, pcov = curve_fit(cosexp, time, acf, p0 = [acf[0], tau, f0]) # TODO: find a way to make a good guess on the parameters (Hilbert transform?)
+                acff = acf[:len(time)]
+                popt, pcov = curve_fit(cosexp, time, acff, p0 = [acff[0], tau, f0])
             except:
                 raise ValueError('Parameters of the `cosexp` method cannot be estimated.')
             R0 = popt[0]
             tau = popt[1]
             f0 = popt[2]
 
-            alpha = 2*np.pi*f0*dt
-            beta  = dt/tau
-
             n = np.arange(len(ck))
-            print(R0, tau, f0, alpha, beta)
-            to_sum = ck_cosexp(n, alpha, beta)
-            bias = np.flip(np.cumsum(np.flip(to_sum))) + ck_cosexp(N//2, alpha, beta)
+            print('Estimated parameters:')
+            print('R0  = {:.2e} +/- {:.2e}'.format(R0,  np.sqrt(pcov[0,0])))
+            print('tau = {:.2f} +/- {:.2f} ps'.format(tau, np.sqrt(pcov[1,1])))
+            print('f0  = {:.2f} +/- {:.2f} THz'.format(f0,  np.sqrt(pcov[2,2])))
+            to_sum = ck_cosexp(n, dt_ps, tau, f0)
+            bias = np.flip(np.cumsum(np.flip(to_sum))) + ck_cosexp(N//2, dt_ps, tau, f0)
 
             fit_variables = {'R0': R0, 'tau': tau, 'f0': f0}
+
+
     
     else:
         raise ValueError('The variable `decay` must either be equal to "cosexp" (default) or "power law".')
 
-    return bias**2 + var, fit_variables
+    return bias**2 + var, fit_variables, bias, var
 
 ########################################################################################################################
 
