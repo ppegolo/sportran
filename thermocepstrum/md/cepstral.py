@@ -101,7 +101,7 @@ class CosFilter(object):
     p_aic... = Bayesian AIC weighting stuff
     """
 
-    def __init__(self, samplelogpsd, ck_theory_var=None, psd_theory_mean=None, aic_type='aic', Kmin_corrfactor=1.0, decay='cosexp',traj=None, dt=None):
+    def __init__(self, samplelogpsd, ck_theory_var=None, psd_theory_mean=None, aic_type='aic', Kmin_corrfactor=1.0, traj = None, dt = None, decay='cosexp', decay_pars = None):
 
         NF = samplelogpsd.size
         N = 2 * (NF - 1)
@@ -128,7 +128,7 @@ class CosFilter(object):
             self.aic = aic.dct_AIC(self.logpsdK, ck_theory_var)
         elif (aic_type == 'aicc'):
             self.aic = aic.dct_AICc(self.logpsdK, ck_theory_var)
-        elif (aic_type == 'mse' or aic_type == 'MSE'):
+        elif (aic_type == 'mmse' or aic_type == 'MMSE'):
             _acf = np.zeros(traj.shape)
             for d in range(traj.shape[1]):
                 _acf[:, d] = acovf(traj[:, d],
@@ -143,6 +143,7 @@ class CosFilter(object):
                                                         theory_mean = psd_theory_mean,
                                                         init_pstar = _aic_Kmin,
                                                         decay = decay,
+                                                        decay_pars = decay_pars,
                                                         acf = _acf,
                                                         dt = dt) 
         else:

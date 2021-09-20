@@ -211,7 +211,7 @@ class Current(MDSample):
             self.ck_THEORY_var, self.psd_THEORY_mean = \
                 md.cepstral.multicomp_cepstral_parameters(self.NFREQS, self.ndf_chi)
 
-    def cepstral_analysis(self, aic_type='aic', Kmin_corrfactor=1.0, K_PSD=None, decay='cosexp'):
+    def cepstral_analysis(self, aic_type='aic', Kmin_corrfactor=1.0, K_PSD=None, MMSE=None):
         """
         Performs Cepstral Analysis on the heat current trajectory.
            aic_type      = the Akaike Information Criterion function used to choose the cutoff ('aic', 'aicc')
@@ -220,9 +220,32 @@ class Current(MDSample):
         Resulting conductivity:
            kappa_Kmin  +/-  kappa_Kmin_std   [SI units]
         """
+    
+        if MMSE is None:
+            self.dct = md.CosFilter(self.logpsd,
+                                    ck_theory_var = self.ck_THEORY_var,
+                                    psd_theory_mean = self.psd_THEORY_mean,
+                                    aic_type = aic_type,
+                                    Kmin_corrfactor = Kmin_corrfactor)
+        else:
+            if isinstance(MMSE, str):
+                decay = MMSE
+                decay_pars = None
+            elif isinstance(MMSE, dict):
+                decay = MMSE['decay']
+                decay_pars = MMSE['decay_pars']
+            else:
+                raise IOError('`MMSE` should be either a string or a dictionary.')
+            self.dct = md.CosFilter(self.logpsd,
+                                    ck_theory_var = self.ck_THEORY_var,
+                                    psd_theory_mean = self.psd_THEORY_mean,
+                                    aic_type = aic_type,
+                                    Kmin_corrfactor = Kmin_corrfactor,
+                                    traj = self.traj,
+                                    dt = self.DT_FS,
+                                    decay = decay,
+                                    decay_pars = decay_pars)
 
-        self.dct = md.CosFilter(self.logpsd, ck_theory_var=self.ck_THEORY_var, \
-            psd_theory_mean=self.psd_THEORY_mean, aic_type=aic_type, Kmin_corrfactor=Kmin_corrfactor, decay=decay,traj=self.traj, dt=self.DT_FS)
         self.dct.scan_filter_tau(K_PSD=K_PSD)
         self.kappa_Kmin = self.dct.tau_Kmin * self.KAPPA_SCALE * 0.5
         self.kappa_Kmin_std = self.dct.tau_std_Kmin * self.KAPPA_SCALE * 0.5

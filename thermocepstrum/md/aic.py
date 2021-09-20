@@ -5,7 +5,7 @@ import numpy as np
 ########################################################################################################################
 # Minimize the Mean Square Error MSE[L_0^*] = bias[L_0^*]**2 + Var[L_0^*]
 
-def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cosexp', acf = None, dt = None):
+def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cosexp', decay_pars = None, acf = None, dt = None):
     
     from scipy.special import zeta
     from scipy.optimize import curve_fit
@@ -29,7 +29,8 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
     if init_pstar is None:
         init_pstar = 100
     
-    pstar = np.arange(len(ck))
+    pstar = np.arange(ck.size -1)
+    print(pstar)
     var = theory_var * (4*pstar-3)
 
     if decay == 'power law':
@@ -47,22 +48,30 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
         fit_variables = {'slope': slope, 'intercept': intercept}
     
     elif decay == 'exp':
-        if acf is None or dt is None:
-        
-            raise ValueError('`acf` and `dt` must be provided to estimate the cepstral coefficients decay with the `exp` method.')
-        
-        else:
-            
-            def expd(t, R0, tau):
-                return R0*np.exp(-np.abs(t)/tau)
-            def ck_exp(n, beta):
-                from numpy import pi, exp
-                n = np.asarray(n)
-                output = np.full(n.shape, np.inf)
-                n_ = n[n != 0]
-                output[n != 0] = exp(-beta*n_)/n_ + (-1)**(n_+1)*2/n_**2/(pi**2+beta**2)
-                return output
+        def expd(t, R0, tau):
+            return R0*np.exp(-np.abs(t)/tau)
+        def ck_exp(n, beta):
+            from numpy import pi, exp
+            n = np.asarray(n)
+            output = np.full(n.shape, np.inf)
+            n_ = n[n != 0]
+            output[n != 0] = exp(-beta*n_)/n_ + (-1)**(n_+1)*2/n_**2/(pi**2+beta**2)
+            return output
 
+        if decay_pars is not None:
+            R0 = decay_pars['R0']
+            tau = decay_pars['tau']
+            
+            beta  = dt/tau
+
+            n = np.arange(len(ck))
+            print(R0, tau, beta)
+            to_sum = ck_exp(n, beta)
+            bias = theory_mean - np.flip(np.cumsum(np.flip(to_sum))) - ck_exp(N//2, beta)
+
+            fit_variables = {'R0': R0, 'tau': tau}
+
+        elif acf is not None and dt is not None:
             time = np.arange(len(acf))*dt
 
             try:
@@ -81,29 +90,38 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
 
             fit_variables = {'R0': R0, 'tau': tau}
 
-    elif decay == 'cosexp':
-        if acf is None or dt is None:
-        
-            raise ValueError('`acf` and `dt` must be provided to estimate the cepstral coefficients decay with the `cosexp` method.')
-        
         else:
+            raise ValueError('`acf` and `dt` must be provided to estimate the cepstral coefficients decay with the `exp` method, if `decay_pars` is not given.')
             
-            def cosexp(t, R0, tau, f0):
-                return R0*np.cos(2*np.pi*f0*t)*np.exp(-np.abs(t)/tau)
-            def ck_cosexp(n, eps, tau, f0):
-                from numpy import exp, pi, cos, sqrt
-                n_ = np.asarray(n)
-                output = np.full(n_.shape, np.inf)
-                n = n_[n_ != 0]
-                output[n_ != 0] = (2*exp(-n*eps/tau) * cos(2*pi*f0*n*eps) - exp(-n*eps/tau*sqrt(1 + (2*pi*tau*f0)**2)))/n
-                return output
-            #def ck_cosexp(n, alpha, beta):
-            #    n = np.asarray(n)
-            #    output = np.full(n.shape, np.inf)
-            #    n_ = n[n != 0]
-            #    output[n != 0] = (1+np.cos(alpha*n_)*np.cosh(beta*n_))/n_
-            #    return output
 
+
+    elif decay == 'cosexp':
+        def cosexp(t, R0, tau, f0):
+            return R0*np.cos(2*np.pi*f0*t)*np.exp(-np.abs(t)/tau)
+        def ck_cosexp(n, eps, tau, f0):
+            from numpy import exp, pi, cos, sqrt
+            n_ = np.asarray(n)
+            output = np.full(n_.shape, np.inf)
+            n = n_[n_ != 0]
+            output[n_ != 0] = (2*exp(-n*eps/tau) * cos(2*pi*f0*n*eps) - exp(-n*eps/tau*sqrt(1 + (2*pi*tau*f0)**2)))/n
+            return output
+        
+        if decay_pars is not None:
+            dt_ps = dt/1000
+            R0 = decay_pars['R0']
+            tau = decay_pars['tau']
+            f0 = decay_pars['f0']
+            
+            n = np.arange(ck.size - 2, -1, -1)
+            print(n.size)
+            print(n)
+            to_sum = ck_cosexp(n, dt_ps, tau, f0)
+            bias = theory_mean - np.flip(2*(np.cumsum(to_sum))) - ck_cosexp(N//2, dt_ps, tau, f0)
+
+            fit_variables = {'R0': R0, 'tau': tau, 'f0': f0}
+        
+        elif acf is not None and dt is not None:
+            
             dt_ps = dt/1000
             time = np.arange(len(acf))*dt_ps
             time = time[time<=100]
@@ -134,15 +152,20 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
             tau = popt[1]
             f0 = popt[2]
 
-            n = np.arange(len(ck))
             print('Estimated parameters:')
             print('R0  = {:.2e} +/- {:.2e}'.format(R0,  np.sqrt(pcov[0,0])))
             print('tau = {:.2f} +/- {:.2f} ps'.format(tau, np.sqrt(pcov[1,1])))
             print('f0  = {:.2f} +/- {:.2f} THz'.format(f0,  np.sqrt(pcov[2,2])))
+            
+            n = np.arange(len(ck))
             to_sum = ck_cosexp(n, dt_ps, tau, f0)
-            bias = np.flip(np.cumsum(np.flip(to_sum))) + ck_cosexp(N//2, dt_ps, tau, f0)
+            bias = theory_mean - np.flip(np.cumsum(np.flip(to_sum))) - ck_cosexp(N//2, dt_ps, tau, f0)
 
             fit_variables = {'R0': R0, 'tau': tau, 'f0': f0}
+        
+        else:
+            raise ValueError('`acf` and `dt` must be provided to estimate the cepstral coefficients decay with the `cosexp` method.')
+        
 
 
     
