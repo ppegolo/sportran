@@ -228,7 +228,7 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
     else:
         raise ValueError('The variable `decay` must either be equal to "cosexp" (default) or "power law".')
 
-    return bias**2 + var, fit_variables, [bias_orig, bias], var
+    return bias**2 + var, fit_variables, bias, var, bias_orig
 
 ########################################################################################################################
 

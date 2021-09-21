@@ -138,7 +138,7 @@ class CosFilter(object):
             _aic = aic.dct_AIC(self.logpsdK, ck_theory_var)
             _aic_Kmin = int(round(np.argmin(_aic) * Kmin_corrfactor))
 
-            self.aic, self.fit_parameters, self.bias, self.var = aic.dct_MSE(self.logpsdK,
+            self.aic, self.fit_parameters, self.bias, self.var, self.bias_main_peak = aic.dct_MSE(self.logpsdK,
                                                         theory_var = ck_theory_var,
                                                         theory_mean = psd_theory_mean,
                                                         init_pstar = _aic_Kmin,
