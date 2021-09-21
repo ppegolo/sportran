@@ -128,19 +128,42 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
             bias_orig = theory_mean - np.flip(2*(np.cumsum(to_sum))) - ck_cosexp(N//2, dt_ps, tau, f0)
 
             # Upper bound on bias (for large enough P...)
-            def sum1(eps, tau, f0, N):
-                from numpy import exp, cos, sin, pi, sqrt
-                return np.array([sqrt(np.sum([2*exp(-n*eps/tau)*cos(2*pi*f0*eps*(n-P))/n for n in range(P, N//2)])**2 + \
-                                 np.sum([2*exp(-n*eps/tau)*sin(2*pi*f0*eps*(n-P))/n for n in range(P, N//2)])**2)   \
-                                 for P in range(1, N//2)])
+            #def sum1(eps, tau, f0, N):
+            #    from numpy import exp, cos, sin, pi, sqrt
+            #    return np.array([sqrt(np.sum([2*exp(-n*eps/tau)*cos(2*pi*f0*eps*(n-P))/n for n in range(P, N//2)])**2 + \
+            #                     np.sum([2*exp(-n*eps/tau)*sin(2*pi*f0*eps*(n-P))/n for n in range(P, N//2)])**2)   \
+            #                     for P in range(1, N//2)])
             def sum2(n, eps, tau, f0, N):
                 from numpy import cumsum, flip, exp, sqrt, pi
                 to_sum = -exp(-n*eps/tau*sqrt(1+(2*pi*f0*tau)**2))/n
                 return flip(cumsum(to_sum))
+
+            def CP(N, eps, f0):
+                from numpy import cos, pi
+                n = np.arange(1, N//2)
+                return cos(2*pi*f0*eps*n)
+            def SP(N, eps, f0):
+                from numpy import sin, pi
+                n = np.arange(1, N//2)
+                return sin(2*pi*f0*eps*n)
+            def SigmaCP(N, eps, tau, f0):
+                from numpy import exp, pi, cos
+                n = np.arange(N//2-1, 0, -1)
+                to_sum = exp(-eps*n/tau)/n*cos(2*pi*f0*eps*n)
+                return np.flip(np.cumsum(to_sum)) 
+            def SigmaSP(N, eps, tau, f0):
+                from numpy import exp, pi, sin
+                n = np.arange(N//2-1, 0, -1)
+                to_sum = exp(-eps*n/tau)/n*sin(2*pi*f0*eps*n)
+                return np.flip(np.cumsum(to_sum)) 
+            
             
             n = np.arange(N//2-1, 0, -1)
 
-            bias = theory_mean -2 * (sum1(dt_ps, tau, f0, N) + sum2(n, dt_ps, tau, f0, N)) - ck_cosexp(N//2, dt_ps, tau, f0)
+            #bias = theory_mean -2 * (sum1(dt_ps, tau, f0, N) + sum2(n, dt_ps, tau, f0, N)) - ck_cosexp(N//2, dt_ps, tau, f0)
+            
+            bias = theory_mean -2 * (CP(N, dt_ps, f0)*SigmaSP(N, dt_ps, tau, f0) - SP(N, dt_ps, f0)*SigmaCP(N, dt_ps, tau, f0))  +\
+                    sum2(n, dt_ps, tau, f0, N)) - ck_cosexp(N//2, dt_ps, tau, f0)
 
             fit_variables = {'R0': R0, 'tau': tau, 'f0': f0}
         
