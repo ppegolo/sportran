@@ -29,7 +29,7 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
     if init_pstar is None:
         init_pstar = 100
     
-    pstar = np.arange(ck.size -1)
+    pstar = np.arange(1, ck.size -1)
     print(pstar)
     var = theory_var * (4*pstar-3)
 
@@ -98,12 +98,21 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
     elif decay == 'cosexp':
         def cosexp(t, R0, tau, f0):
             return R0*np.cos(2*np.pi*f0*t)*np.exp(-np.abs(t)/tau)
+        # Analytic formula that works when the correlation function is cosexp
         def ck_cosexp(n, eps, tau, f0):
             from numpy import exp, pi, cos, sqrt
             n_ = np.asarray(n)
             output = np.full(n_.shape, np.inf)
             n = n_[n_ != 0]
             output[n_ != 0] = (2*exp(-n*eps/tau) * cos(2*pi*f0*n*eps) - exp(-n*eps/tau*sqrt(1 + (2*pi*tau*f0)**2)))/n
+            return output
+        # Sort of upper bound
+        def ck_cosexp_ub(n, eps, tau, f0):
+            from numpy import exp, pi, cos, sqrt
+            n_ = np.asarray(n)
+            output = np.full(n_.shape, np.inf)
+            n = n_[n_ != 0]
+            output[n_ != 0] = 3*exp(-n*eps/tau)/n
             return output
         
         if decay_pars is not None:
@@ -151,18 +160,22 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
             R0 = popt[0]
             tau = popt[1]
             f0 = popt[2]
+            fit_variables = {'R0': R0, 'tau': tau, 'f0': f0}
 
             print('Estimated parameters:')
             print('R0  = {:.2e} +/- {:.2e}'.format(R0,  np.sqrt(pcov[0,0])))
             print('tau = {:.2f} +/- {:.2f} ps'.format(tau, np.sqrt(pcov[1,1])))
             print('f0  = {:.2f} +/- {:.2f} THz'.format(f0,  np.sqrt(pcov[2,2])))
             
-            n = np.arange(len(ck))
-            to_sum = ck_cosexp(n, dt_ps, tau, f0)
-            bias = theory_mean - np.flip(np.cumsum(np.flip(to_sum))) - ck_cosexp(N//2, dt_ps, tau, f0)
+            #n = np.arange(ck.size - 2, -1, -1)
+            #print(n.size)
+            #print(n)
+            #to_sum = ck_cosexp(n, dt_ps, tau, f0)
+            #bias = theory_mean - np.flip(2*(np.cumsum(to_sum))) - ck_cosexp(N//2, dt_ps, tau, f0)
 
-            fit_variables = {'R0': R0, 'tau': tau, 'f0': f0}
-        
+            pstar = np.arange(ck.size-2, 0, -1) # ck.size = N/2, so ck.size-2 lets the range start from N/2-1
+            bias = theory_mean - 2*np.flip(np.cumsum(ck_cosexp_ub(pstar, dt_ps, tau, f0))) - 2*ck_cosexp_ub(ck.size, dt_ps, tau, f0)
+
         else:
             raise ValueError('`acf` and `dt` must be provided to estimate the cepstral coefficients decay with the `cosexp` method.')
         
