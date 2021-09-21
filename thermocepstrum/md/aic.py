@@ -106,8 +106,8 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
             n = n_[n_ != 0]
             output[n_ != 0] = (2*exp(-n*eps/tau) * cos(2*pi*f0*n*eps) - exp(-n*eps/tau*sqrt(1 + (2*pi*tau*f0)**2)))/n
             return output
-        # Sort of upper bound
-        def ck_cosexp_ub(n, eps, tau, f0):
+        # Overkill upper bound
+        def ck_cosexp_ub_overkill(n, eps, tau, f0):
             from numpy import exp, pi, cos, sqrt
             n_ = np.asarray(n)
             output = np.full(n_.shape, np.inf)
@@ -125,7 +125,22 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
             print(n.size)
             print(n)
             to_sum = ck_cosexp(n, dt_ps, tau, f0)
-            bias = theory_mean - np.flip(2*(np.cumsum(to_sum))) - ck_cosexp(N//2, dt_ps, tau, f0)
+            bias_orig = theory_mean - np.flip(2*(np.cumsum(to_sum))) - ck_cosexp(N//2, dt_ps, tau, f0)
+
+            # Upper bound on bias (for large enough P...)
+            def sum1(eps, tau, f0, N):
+                from numpy import exp, cos, sin, pi, sqrt
+                return np.array([sqrt(np.sum([2*exp(-n*eps/tau)*cos(2*pi*f0*eps*(n-P))/n for n in range(P, N//2)])**2 + \
+                                 np.sum([2*exp(-n*eps/tau)*sin(2*pi*f0*eps*(n-P))/n for n in range(P, N//2)])**2)   \
+                                 for P in range(1, N//2)])
+            def sum2(n, eps, tau, f0, N):
+                from numpy import cumsum, flip, exp, sqrt, pi
+                to_sum = -exp(-n*eps/tau*sqrt(1+(2*pi*f0*tau)**2))/n
+                return flip(cumsum(to_sum))
+            
+            n = np.arange(N//2-1, 0, -1)
+
+            bias = theory_mean -2 * (sum1(dt_ps, tau, f0, N) + sum2(n, dt_ps, tau, f0, N)) - ck_cosexp(N//2, dt_ps, tau, f0)
 
             fit_variables = {'R0': R0, 'tau': tau, 'f0': f0}
         
