@@ -121,7 +121,7 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
             tau = decay_pars['tau']
             f0 = decay_pars['f0']
             
-            n = np.arange(ck.size - 2, -1, -1)
+            n = np.arange(N//2 - 1, 0, -1)
             print(n.size)
             print(n)
             to_sum = ck_cosexp(n, dt_ps, tau, f0)
@@ -147,23 +147,28 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
                 n = np.arange(1, N//2)
                 return sin(2*pi*f0*eps*n)
             def SigmaCP(N, eps, tau, f0):
-                from numpy import exp, pi, cos
+                from numpy import exp, pi, cos, flip, cumsum
                 n = np.arange(N//2-1, 0, -1)
-                to_sum = exp(-eps*n/tau)/n*cos(2*pi*f0*eps*n)
-                return np.flip(np.cumsum(to_sum)) 
+                to_sum = 2*exp(-eps*n/tau)/n*cos(2*pi*f0*eps*n)
+                return flip(cumsum(to_sum)) 
             def SigmaSP(N, eps, tau, f0):
-                from numpy import exp, pi, sin
+                from numpy import exp, pi, sin, flip, cumsum
                 n = np.arange(N//2-1, 0, -1)
-                to_sum = exp(-eps*n/tau)/n*sin(2*pi*f0*eps*n)
-                return np.flip(np.cumsum(to_sum)) 
+                to_sum = 2*exp(-eps*n/tau)/n*sin(2*pi*f0*eps*n)
+                return flip(cumsum(to_sum)) 
+            def sum2(N, eps, tau, f0):
+                from numpy import cumsum, flip, exp, sqrt, pi
+                n = np.arange(N//2-1, 0, -1)
+                to_sum = -exp(-n*eps/tau*sqrt(1+(2*pi*f0*tau)**2))/n
+                return flip(cumsum(to_sum))
             
             
-            n = np.arange(N//2-1, 0, -1)
+            #n = np.arange(N//2-1, 0, -1)
 
             #bias = theory_mean -2 * (sum1(dt_ps, tau, f0, N) + sum2(n, dt_ps, tau, f0, N)) - ck_cosexp(N//2, dt_ps, tau, f0)
             
-            bias = theory_mean -2 * (CP(N, dt_ps, f0)*SigmaSP(N, dt_ps, tau, f0) - SP(N, dt_ps, f0)*SigmaCP(N, dt_ps, tau, f0))  +\
-                    sum2(n, dt_ps, tau, f0, N)) - ck_cosexp(N//2, dt_ps, tau, f0)
+            bias = theory_mean - 2*(CP(N, dt_ps, f0)*SigmaSP(N, dt_ps, tau, f0) - SP(N, dt_ps, f0)*SigmaCP(N, dt_ps, tau, f0)  +\
+                    sum2(N, dt_ps, tau, f0)) - ck_cosexp(N//2, dt_ps, tau, f0)
 
             fit_variables = {'R0': R0, 'tau': tau, 'f0': f0}
         
@@ -223,7 +228,7 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
     else:
         raise ValueError('The variable `decay` must either be equal to "cosexp" (default) or "power law".')
 
-    return bias**2 + var, fit_variables, bias, var
+    return bias**2 + var, fit_variables, [bias_orig, bias], var
 
 ########################################################################################################################
 
