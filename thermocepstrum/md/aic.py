@@ -166,8 +166,13 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
             #n = np.arange(N//2-1, 0, -1)
 
             #bias = theory_mean -2 * (sum1(dt_ps, tau, f0, N) + sum2(n, dt_ps, tau, f0, N)) - ck_cosexp(N//2, dt_ps, tau, f0)
+
+            Ssp = SigmaSP(N, dt_ps, tau, f0)
+            Scp = SigmaCP(N, dt_ps, tau, f0)
+            Cp  = CP(N, dt_ps, f0)
+            Sp  = SP(N, dt_ps, f0)
             
-            bias = theory_mean - 2*(CP(N, dt_ps, f0)*SigmaSP(N, dt_ps, tau, f0) - SP(N, dt_ps, f0)*SigmaCP(N, dt_ps, tau, f0)  +\
+            bias = theory_mean - 2*(np.sqrt((Cp*Scp + Sp*Ssp)**2 + (Cp*Ssp - Sp*Scp)**2) + \
                     sum2(N, dt_ps, tau, f0)) - ck_cosexp(N//2, dt_ps, tau, f0)
 
             fit_variables = {'R0': R0, 'tau': tau, 'f0': f0}
