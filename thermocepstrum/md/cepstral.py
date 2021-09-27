@@ -128,7 +128,7 @@ class CosFilter(object):
             self.aic = aic.dct_AIC(self.logpsdK, ck_theory_var)
         elif (aic_type == 'aicc'):
             self.aic = aic.dct_AICc(self.logpsdK, ck_theory_var)
-        elif (aic_type == 'mmse' or aic_type == 'MMSE'):
+        elif (aic_type == 'mmse_anal'):
             _acf = np.zeros(traj.shape)
             for d in range(traj.shape[1]):
                 _acf[:, d] = acovf(traj[:, d],
@@ -138,14 +138,24 @@ class CosFilter(object):
             _aic = aic.dct_AIC(self.logpsdK, ck_theory_var)
             _aic_Kmin = int(round(np.argmin(_aic) * Kmin_corrfactor))
 
-            self.aic, self.fit_parameters, self.bias, self.var, self.bias_main_peak = aic.dct_MSE(self.logpsdK,
+            self.aic, self.fit_parameters, self.bias, self.var, self.bias_main_peak = aic.dct_MSE_analytic(self.logpsdK,
                                                         theory_var = ck_theory_var,
                                                         theory_mean = psd_theory_mean,
                                                         init_pstar = _aic_Kmin,
                                                         decay = decay,
                                                         decay_pars = decay_pars,
                                                         acf = _acf,
-                                                        dt = dt) 
+                                                        dt = dt)
+        elif (aic_type == 'mmse'):
+            if decay_pars is not None and 'window_freq_THz' in decay_pars:
+                window_freq_THz = decay_pars['window_freq_THz']
+            else:
+                window_freq_THz = 0.05
+            self.aic, self.bias, self.var = aic.dct_MSE(self.samplelogpsd,
+                                                        theory_var = ck_theory_var,
+                                                        theory_mean = psd_theory_mean,
+                                                        dt = dt,
+                                                        window_freq_THz = window_freq_THz) 
         else:
             raise ValueError('AIC type not valid.')
         self.aic_type = aic_type

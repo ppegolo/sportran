@@ -226,7 +226,8 @@ class Current(MDSample):
                                     ck_theory_var = self.ck_THEORY_var,
                                     psd_theory_mean = self.psd_THEORY_mean,
                                     aic_type = aic_type,
-                                    Kmin_corrfactor = Kmin_corrfactor)
+                                    Kmin_corrfactor = Kmin_corrfactor,
+                                    dt = self.DT_FS)
         else:
             if isinstance(MMSE, str):
                 decay = MMSE

@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+import pandas as pd
+from scipy.fft import dct
 
 ########################################################################################################################
 # Minimize the Mean Square Error MSE[L_0^*] = bias[L_0^*]**2 + Var[L_0^*]
 
-def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cosexp', decay_pars = None, acf = None, dt = None):
+def dct_MSE_analytic(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cosexp', decay_pars = None, acf = None, dt = None):
     
     from scipy.special import zeta
     from scipy.optimize import curve_fit
@@ -29,8 +31,7 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
     if init_pstar is None:
         init_pstar = 100
     
-    pstar = np.arange(1, ck.size -1)
-    print(pstar)
+    pstar = np.arange(1, N // 2 + 1)
     var = theory_var * (4*pstar-3)
 
     if decay == 'power law':
@@ -47,54 +48,6 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
         
         fit_variables = {'slope': slope, 'intercept': intercept}
     
-    elif decay == 'exp':
-        def expd(t, R0, tau):
-            return R0*np.exp(-np.abs(t)/tau)
-        def ck_exp(n, beta):
-            from numpy import pi, exp
-            n = np.asarray(n)
-            output = np.full(n.shape, np.inf)
-            n_ = n[n != 0]
-            output[n != 0] = exp(-beta*n_)/n_ + (-1)**(n_+1)*2/n_**2/(pi**2+beta**2)
-            return output
-
-        if decay_pars is not None:
-            R0 = decay_pars['R0']
-            tau = decay_pars['tau']
-            
-            beta  = dt/tau
-
-            n = np.arange(len(ck))
-            print(R0, tau, beta)
-            to_sum = ck_exp(n, beta)
-            bias = theory_mean - np.flip(np.cumsum(np.flip(to_sum))) - ck_exp(N//2, beta)
-
-            fit_variables = {'R0': R0, 'tau': tau}
-
-        elif acf is not None and dt is not None:
-            time = np.arange(len(acf))*dt
-
-            try:
-                popt, pcov = curve_fit(expd, time, acf, p0 = [acf[0], 1000.]) # TODO: find a way to make a good guess on the parameters (Hilbert transform?)
-            except:
-                raise ValueError('Parameters of the `exp` method cannot be estimated.')
-            R0 = popt[0]
-            tau = popt[1]
-
-            beta  = dt/tau
-
-            n = np.arange(len(ck))
-            print(R0, tau, beta)
-            to_sum = ck_exp(n, beta)
-            bias = theory_mean - np.flip(np.cumsum(np.flip(to_sum))) - ck_exp(N//2, beta)
-
-            fit_variables = {'R0': R0, 'tau': tau}
-
-        else:
-            raise ValueError('`acf` and `dt` must be provided to estimate the cepstral coefficients decay with the `exp` method, if `decay_pars` is not given.')
-            
-
-
     elif decay == 'cosexp':
         def cosexp(t, R0, tau, f0):
             return R0*np.cos(2*np.pi*f0*t)*np.exp(-np.abs(t)/tau)
@@ -121,12 +74,15 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
             tau = decay_pars['tau']
             f0 = decay_pars['f0']
             
-            n = np.arange(N//2 - 1, 0, -1)
+            n = np.arange(N // 2 - 1, 0, -1)
             print(n.size)
             print(n)
             to_sum = ck_cosexp(n, dt_ps, tau, f0)
-            bias_orig = theory_mean - np.flip(2*(np.cumsum(to_sum))) - ck_cosexp(N//2, dt_ps, tau, f0)
-
+    
+            bias_orig = np.ones(var.size)*theory_mean
+            bias_orig[:-1] -= np.flip(2*(np.cumsum(to_sum)))
+            bias_orig[-1] = bias_orig[-2] - ck_cosexp(N//2, dt_ps, tau, f0)
+            
             # Upper bound on bias (for large enough P...)
             #def sum1(eps, tau, f0, N):
             #    from numpy import exp, cos, sin, pi, sqrt
@@ -172,8 +128,12 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
             Cp  = CP(N, dt_ps, f0)
             Sp  = SP(N, dt_ps, f0)
             
-            bias = theory_mean - 2*(np.sqrt((Cp*Scp + Sp*Ssp)**2 + (Cp*Ssp - Sp*Scp)**2) + \
-                    sum2(N, dt_ps, tau, f0)) - ck_cosexp(N//2, dt_ps, tau, f0)
+            bias = np.ones(var.size)*theory_mean
+            bias[:-1] -= 2*(np.sqrt((Cp*Scp + Sp*Ssp)**2 + (Cp*Ssp - Sp*Scp)**2) + sum2(N, dt_ps, tau, f0))
+            bias[-1] = bias[-2] - ck_cosexp(N//2, dt_ps, tau, f0)
+            
+            #bias = theory_mean - 2*(np.sqrt((Cp*Scp + Sp*Ssp)**2 + (Cp*Ssp - Sp*Scp)**2) + \
+            #        sum2(N, dt_ps, tau, f0)) - ck_cosexp(N//2, dt_ps, tau, f0)
 
             fit_variables = {'R0': R0, 'tau': tau, 'f0': f0}
         
@@ -234,6 +194,59 @@ def dct_MSE(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cos
         raise ValueError('The variable `decay` must either be equal to "cosexp" (default) or "power law".')
 
     return bias**2 + var, fit_variables, bias, var, bias_orig
+
+########################################################################################################################
+
+def dct_MSE(logpsd, theory_var=None, theory_mean=None, dt = 1, window_freq_THz = 0.05):
+    
+    from scipy.optimize import curve_fit
+    from scipy.stats import linregress
+
+    N = 2 * (logpsd.size - 1)
+    
+    
+    # Compute mean and variance of the cepstral coefficients
+    eulergamma = 0.57721566490153286060651209008240243104215933593992
+
+    if theory_var is None:
+        theory_var = np.pi**2 / 6. / N   # otherwise
+    else:
+        theory_var = theory_var[1]
+
+    if theory_mean is None:
+        theory_mean = -eulergamma
+    else:
+        theory_mean = theory_mean[1]
+
+    pstar = np.arange(1, N // 2 + 1)
+    var = theory_var * (4*pstar-3)
+
+    # 1. Provide a gross and uncontrolled estimate of the smooth PSD via a moving average
+    window = 2 * (int(window_freq_THz / (1/dt/N*1000)) // 2) + 1
+    window = np.max([window, 51]) # If the desired window is too small, set it to 100
+    #smoothed_logpsd = pd.Series(logpsd).rolling(window = window).mean().shift(1-window).fillna(method = 'ffill').to_numpy()
+    import warnings
+    from scipy.signal import savgol_filter
+    with warnings.catch_warnings():
+        warnings.filterwarnings('error')
+        try:
+            smoothed_logpsd = savgol_filter(logpsd, window_length = window, polyorder = 3)
+        except np.RankWarning:
+            smoothed_logpsd = pd.Series(logpsd).rolling(window = window).mean().shift(1-window).fillna(method = 'ffill').to_numpy()
+
+    # 2. Compute the gross cepstrum
+    smoothed_cepstrum = dct(smoothed_logpsd, type = 1) / N
+
+    # 3. Compute the bias
+    bias = np.ones(var.size)*theory_mean
+    cs = np.flip(2*np.cumsum(smoothed_cepstrum[-2:0:-1])) # Start from P=N/2-1 and end on P=1, then flip
+    bias[:-1] -= cs
+    bias[-1] -= cs[-1] + smoothed_cepstrum[-1]
+
+    del smoothed_logpsd
+    del smoothed_cepstrum
+
+    return bias**2 + var, bias, var #fit_variables, bias, var, bias_orig
 
 ########################################################################################################################
 
