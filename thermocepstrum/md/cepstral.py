@@ -150,7 +150,7 @@ class CosFilter(object):
             if decay_pars is not None and 'window_freq_THz' in decay_pars:
                 window_freq_THz = decay_pars['window_freq_THz']
             else:
-                window_freq_THz = 0.05
+                window_freq_THz = None
             self.aic, self.bias, self.var = aic.dct_MSE(self.samplelogpsd,
                                                         theory_var = ck_theory_var,
                                                         theory_mean = psd_theory_mean,

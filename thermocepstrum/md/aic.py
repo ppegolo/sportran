@@ -197,7 +197,7 @@ def dct_MSE_analytic(ck, theory_var=None, theory_mean=None, init_pstar=None, dec
 
 ########################################################################################################################
 
-def dct_MSE(logpsd, theory_var=None, theory_mean=None, dt = 1, window_freq_THz = 0.05):
+def dct_MSE(logpsd, theory_var=None, theory_mean=None, dt = 1, window_freq_THz = None):
     
     from scipy.optimize import curve_fit
     from scipy.stats import linregress
@@ -222,9 +222,15 @@ def dct_MSE(logpsd, theory_var=None, theory_mean=None, dt = 1, window_freq_THz =
     var = theory_var * (4*pstar-3)
 
     # 1. Provide a gross and uncontrolled estimate of the smooth PSD via a moving average
-    window = 2 * (int(window_freq_THz / (1/dt/N*1000)) // 2) + 1
-    window = np.max([window, 51]) # If the desired window is too small, set it to 100
+    df = 1/dt/N*1000 #THz
+    if window_freq_THz is None:
+        window_freq_THz = 5.0
+    window = 2*(int(window_freq_THz / df) // 2) + 1
+    print('Savinsky-Golay smoothing window width = {:.1f} THz = {:d} points'.format(window_freq_THz, window))
+    if window < 10:
+        print('The window is likely to be too narrow. Please set a larger value of `window_freq_THz`.')
     #smoothed_logpsd = pd.Series(logpsd).rolling(window = window).mean().shift(1-window).fillna(method = 'ffill').to_numpy()
+
     import warnings
     from scipy.signal import savgol_filter
     with warnings.catch_warnings():
@@ -238,10 +244,12 @@ def dct_MSE(logpsd, theory_var=None, theory_mean=None, dt = 1, window_freq_THz =
     smoothed_cepstrum = dct(smoothed_logpsd, type = 1) / N
 
     # 3. Compute the bias
-    bias = np.ones(var.size)*theory_mean
+    #bias = np.ones(var.size)*theory_mean
+    bias = np.zeros(var.size)
     cs = np.flip(2*np.cumsum(smoothed_cepstrum[-2:0:-1])) # Start from P=N/2-1 and end on P=1, then flip
-    bias[:-1] -= cs
-    bias[-1] -= cs[-1] + smoothed_cepstrum[-1]
+    # TODO: do I have to include the trivial bias or not?
+    bias[:-1] = - cs
+    bias[-1] = bias[-2] - smoothed_cepstrum[-1]
 
     del smoothed_logpsd
     del smoothed_cepstrum
