@@ -241,12 +241,13 @@ def dct_MSE(logpsd, theory_var=None, theory_mean=None, dt = 1, window_freq_THz =
             smoothed_logpsd = pd.Series(logpsd).rolling(window = window).mean().shift(1-window).fillna(method = 'ffill').to_numpy()
     # 1b. Down-sample the smoothed logpsd and interpolate it with a quadratic function (this removes any residual noise)
     from scipy.interpolate import interp1d
-    ds = smoothed_logpsd.size // 50
+    ds = smoothed_logpsd.size // 200
     ds_logpsd = smoothed_logpsd[0:-1:ds]
     x = np.linspace(0, 1, ds_logpsd.size)
-    interp_logpsd = interp1d(x, smoothed_logpsd, kind = 'quadratic')
+    interp_logpsd = interp1d(x, ds_logpsd, kind = 'quadratic')
 
     # 2. Compute the gross cepstrum
+    x = np.linspace(0, 1, smoothed_logpsd.size)
     smoothed_cepstrum = dct(interp_logpsd(x), type = 1) / N
 
     # 3. Compute the bias
