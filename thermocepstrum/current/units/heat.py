@@ -51,3 +51,13 @@ def scale_kappa_dlpoly(TEMPERATURE, VOLUME):
     VOLUME      cell VOLUME [A^3]
     """
     return (1.0 / constants.NA / TEMPERATURE)**2 / constants.kB / VOLUME * 1e10
+
+def scale_kappa_lj(TEMPERATURE, VOLUME):
+    """
+    Conversion factor for the thermal conductivity in LJ LAMMPS units.
+    INPUT:
+    TEMPERATURE [eps/kB]
+    VOLUME      cell VOLUME [sigma^3]
+    """
+    return (1 / TEMPERATURE)**2 / VOLUME
+

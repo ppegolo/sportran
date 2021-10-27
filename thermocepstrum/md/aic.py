@@ -219,14 +219,14 @@ def dct_MSE(logpsd, theory_var=None, theory_mean=None, dt = 1, window_freq_THz =
         theory_mean = theory_mean[1]
 
     pstar = np.arange(1, N // 2 + 1)
-    var = theory_var * (4*pstar-3)
+    var = theory_var * (4*pstar-2)
 
     # 1. Provide a gross and uncontrolled estimate of the smooth PSD via a moving average
     df = 1/dt/N*1000 #THz
     if window_freq_THz is None:
         window_freq_THz = 5.0
     window = 2*(int(window_freq_THz / df) // 2) + 1
-    print('Savinsky-Golay smoothing window width = {:.1f} THz = {:d} points'.format(window_freq_THz, window))
+    print('Savitzki-Golay smoothing window width = {:.1f} THz = {:d} points'.format(window_freq_THz, window))
     if window < 10:
         print('The window is likely to be too narrow. Please set a larger value of `window_freq_THz`.')
     #smoothed_logpsd = pd.Series(logpsd).rolling(window = window).mean().shift(1-window).fillna(method = 'ffill').to_numpy()
