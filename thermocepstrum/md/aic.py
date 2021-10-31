@@ -224,7 +224,7 @@ def dct_MSE(logpsd, theory_var=None, theory_mean=None, dt = 1, window_freq_THz =
     # 1. Provide a gross and uncontrolled estimate of the smooth PSD via a moving average
     df = 1/dt/N*1000 #THz
     if window_freq_THz is None:
-        window_freq_THz = 5.0
+        window_freq_THz = 1.0
     window = 2*(int(window_freq_THz / df) // 2) + 1
     print('Savitzki-Golay smoothing window width = {:.1f} THz = {:d} points'.format(window_freq_THz, window))
     if window < 10:
@@ -240,15 +240,18 @@ def dct_MSE(logpsd, theory_var=None, theory_mean=None, dt = 1, window_freq_THz =
         except np.RankWarning:
             smoothed_logpsd = pd.Series(logpsd).rolling(window = window).mean().shift(1-window).fillna(method = 'ffill').to_numpy()
     # 1b. Down-sample the smoothed logpsd and interpolate it with a quadratic function (this removes any residual noise)
-    from scipy.interpolate import interp1d
-    ds = smoothed_logpsd.size // 200
-    ds_logpsd = smoothed_logpsd[0:-1:ds]
-    x = np.linspace(0, 1, ds_logpsd.size)
-    interp_logpsd = interp1d(x, ds_logpsd, kind = 'quadratic')
+    #from scipy.interpolate import interp1d
+    #ds = smoothed_logpsd.size // 200
+    #ds_logpsd = smoothed_logpsd[0:-1:ds]
+    #x = np.linspace(0, 1, ds_logpsd.size)
+    #interp_logpsd = interp1d(x, ds_logpsd, kind = 'quadratic')
+    #x = np.linspace(0, 1, smoothed_logpsd.size)
+    #smoothed_logpsd = interp_logpsd(x)
+    #del interp_logpsd
+    #del ds_logpsd
 
     # 2. Compute the gross cepstrum
-    x = np.linspace(0, 1, smoothed_logpsd.size)
-    smoothed_cepstrum = dct(interp_logpsd(x), type = 1) / N
+    smoothed_cepstrum = dct(smoothed_logpsd, type = 1) / N
 
     # 3. Compute the bias
     #bias = np.ones(var.size)*theory_mean
@@ -259,8 +262,6 @@ def dct_MSE(logpsd, theory_var=None, theory_mean=None, dt = 1, window_freq_THz =
     bias[-1] = bias[-2] - smoothed_cepstrum[-1]
 
     del smoothed_logpsd
-    del interp_logpsd
-    del ds_logpsd
     del smoothed_cepstrum
 
     return bias**2 + var, bias, var #fit_variables, bias, var, bias_orig

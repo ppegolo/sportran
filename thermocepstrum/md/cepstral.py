@@ -101,7 +101,7 @@ class CosFilter(object):
     p_aic... = Bayesian AIC weighting stuff
     """
 
-    def __init__(self, samplelogpsd, ck_theory_var=None, psd_theory_mean=None, aic_type='aic', Kmin_corrfactor=1.0, traj = None, dt = None, decay='cosexp', decay_pars = None):
+    def __init__(self, samplelogpsd, ck_theory_var=None, psd_theory_mean=None, aic_type='aic', Kmin_corrfactor=1.0, traj = None, dt = None, MMSE_window_THz = None):
 
         NF = samplelogpsd.size
         N = 2 * (NF - 1)
@@ -128,34 +128,12 @@ class CosFilter(object):
             self.aic = aic.dct_AIC(self.logpsdK, ck_theory_var)
         elif (aic_type == 'aicc'):
             self.aic = aic.dct_AICc(self.logpsdK, ck_theory_var)
-        elif (aic_type == 'mmse_anal'):
-            _acf = np.zeros(traj.shape)
-            for d in range(traj.shape[1]):
-                _acf[:, d] = acovf(traj[:, d],
-                                   unbiased = True,
-                                   fft = True)
-            _acf = np.mean(_acf, axis = 1)
-            _aic = aic.dct_AIC(self.logpsdK, ck_theory_var)
-            _aic_Kmin = int(round(np.argmin(_aic) * Kmin_corrfactor))
-
-            self.aic, self.fit_parameters, self.bias, self.var, self.bias_main_peak = aic.dct_MSE_analytic(self.logpsdK,
-                                                        theory_var = ck_theory_var,
-                                                        theory_mean = psd_theory_mean,
-                                                        init_pstar = _aic_Kmin,
-                                                        decay = decay,
-                                                        decay_pars = decay_pars,
-                                                        acf = _acf,
-                                                        dt = dt)
-        elif (aic_type == 'mmse'):
-            if decay_pars is not None and 'window_freq_THz' in decay_pars:
-                window_freq_THz = decay_pars['window_freq_THz']
-            else:
-                window_freq_THz = None
+        elif (aic_type == 'mmse' or aic_type == 'MMSE'):
             self.aic, self.bias, self.var = aic.dct_MSE(self.samplelogpsd,
                                                         theory_var = ck_theory_var,
                                                         theory_mean = psd_theory_mean,
                                                         dt = dt,
-                                                        window_freq_THz = window_freq_THz) 
+                                                        window_freq_THz = MMSE_window_THz) 
         else:
             raise ValueError('AIC type not valid.')
         self.aic_type = aic_type
