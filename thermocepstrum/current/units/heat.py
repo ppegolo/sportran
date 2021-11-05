@@ -61,3 +61,15 @@ def scale_kappa_lj(TEMPERATURE, VOLUME):
     """
     return (1 / TEMPERATURE)**2 / VOLUME
 
+def scale_kappa_METALVIStoSI(TEMPERATURE, VOLUME):
+    # To be deleted: compute shear viscosity using the HeatCurrent class
+    kB = 1.3806504
+    bartoPa=1
+    """
+    Conversion factor for viscosity from REAL units to CGS (Poise) units.
+    INPUT:
+    temp      =  temperature [ K ]
+    volume    =  cell volume [ A^3 ]
+    timestep  =  integration time step [ fs ]
+    """
+    return (VOLUME / kB / TEMPERATURE * bartoPa**2 * 1e-11)
