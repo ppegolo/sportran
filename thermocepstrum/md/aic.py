@@ -226,9 +226,9 @@ def dct_MSE(logpsd, theory_var=None, theory_mean=None, dt = 1, window_freq_THz =
     if window_freq_THz is None:
         window_freq_THz = 1.0
     window = 2*(int(window_freq_THz / df) // 2) + 1
-    print('Savitzki-Golay smoothing window width = {:.1f} THz = {:d} points'.format(window_freq_THz, window))
+    print('Savitzki-Golay smoothing window width = {:.2f} THz = {:d} points'.format(window_freq_THz, window))
     if window < 10:
-        print('The window is likely to be too narrow. Please set a larger value of `window_freq_THz`.')
+        print('The window is likely too narrow. Please set a larger value of `window_freq_THz`.')
     #smoothed_logpsd = pd.Series(logpsd).rolling(window = window).mean().shift(1-window).fillna(method = 'ffill').to_numpy()
 
     import warnings
