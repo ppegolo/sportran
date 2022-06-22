@@ -1,7 +1,294 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+import pandas as pd
+from scipy.fft import dct
 
+########################################################################################################################
+# Minimize the Mean Square Error MSE[L_0^*] = bias[L_0^*]**2 + Var[L_0^*]
+
+def dct_MSE_analytic(ck, theory_var=None, theory_mean=None, init_pstar=None, decay = 'cosexp', decay_pars = None, acf = None, dt = None):
+    
+    from scipy.special import zeta
+    from scipy.optimize import curve_fit
+    from scipy.stats import linregress
+
+    eulergamma = 0.57721566490153286060651209008240243104215933593992
+    N = 2 * (ck.size - 1)
+
+    if theory_var is None:
+        theory_var = np.pi**2 / 6. / N   # otherwise
+    else:
+        theory_var = theory_var[1]
+
+    if theory_mean is None:
+        theory_mean = -eulergamma
+    else:
+        theory_mean = theory_mean[1]
+
+    C0 = ck[0]
+
+    if init_pstar is None:
+        init_pstar = 100
+    
+    pstar = np.arange(1, N // 2 + 1)
+    var = theory_var * (4*pstar-3)
+
+    if decay == 'power law':
+        where = slice(0, init_pstar)
+        n = np.arange(len(ck))
+        xf = np.log(n+1)[where]
+        yf = np.log(np.abs(ck))[where]
+        slope, intercept, r, p, se = linregress(xf, yf)
+        print('B = {:.2e} +\- {:.2e}'.format(slope, se))
+        print('r-value = {:.2e}'.format(r))
+        B = -slope
+
+        bias = theory_mean - C0*((1+N/2)**slope + 2*zeta(B, 1+pstar) - 2*zeta(B, 1+N/2))
+        
+        fit_variables = {'slope': slope, 'intercept': intercept}
+    
+    elif decay == 'cosexp':
+        def cosexp(t, R0, tau, f0):
+            return R0*np.cos(2*np.pi*f0*t)*np.exp(-np.abs(t)/tau)
+        # Analytic formula that works when the correlation function is cosexp
+        def ck_cosexp(n, eps, tau, f0):
+            from numpy import exp, pi, cos, sqrt
+            n_ = np.asarray(n)
+            output = np.full(n_.shape, np.inf)
+            n = n_[n_ != 0]
+            output[n_ != 0] = (2*exp(-n*eps/tau) * cos(2*pi*f0*n*eps) - exp(-n*eps/tau*sqrt(1 + (2*pi*tau*f0)**2)))/n
+            return output
+        # Overkill upper bound
+        def ck_cosexp_ub_overkill(n, eps, tau, f0):
+            from numpy import exp, pi, cos, sqrt
+            n_ = np.asarray(n)
+            output = np.full(n_.shape, np.inf)
+            n = n_[n_ != 0]
+            output[n_ != 0] = 3*exp(-n*eps/tau)/n
+            return output
+        
+        if decay_pars is not None:
+            dt_ps = dt/1000
+            R0 = decay_pars['R0']
+            tau = decay_pars['tau']
+            f0 = decay_pars['f0']
+            
+            n = np.arange(N // 2 - 1, 0, -1)
+            print(n.size)
+            print(n)
+            to_sum = ck_cosexp(n, dt_ps, tau, f0)
+    
+            bias_orig = np.ones(var.size)*theory_mean
+            bias_orig[:-1] -= np.flip(2*(np.cumsum(to_sum)))
+            bias_orig[-1] = bias_orig[-2] - ck_cosexp(N//2, dt_ps, tau, f0)
+            
+            # Upper bound on bias (for large enough P...)
+            #def sum1(eps, tau, f0, N):
+            #    from numpy import exp, cos, sin, pi, sqrt
+            #    return np.array([sqrt(np.sum([2*exp(-n*eps/tau)*cos(2*pi*f0*eps*(n-P))/n for n in range(P, N//2)])**2 + \
+            #                     np.sum([2*exp(-n*eps/tau)*sin(2*pi*f0*eps*(n-P))/n for n in range(P, N//2)])**2)   \
+            #                     for P in range(1, N//2)])
+            def sum2(n, eps, tau, f0, N):
+                from numpy import cumsum, flip, exp, sqrt, pi
+                to_sum = -exp(-n*eps/tau*sqrt(1+(2*pi*f0*tau)**2))/n
+                return flip(cumsum(to_sum))
+
+            def CP(N, eps, f0):
+                from numpy import cos, pi
+                n = np.arange(1, N//2)
+                return cos(2*pi*f0*eps*n)
+            def SP(N, eps, f0):
+                from numpy import sin, pi
+                n = np.arange(1, N//2)
+                return sin(2*pi*f0*eps*n)
+            def SigmaCP(N, eps, tau, f0):
+                from numpy import exp, pi, cos, flip, cumsum
+                n = np.arange(N//2-1, 0, -1)
+                to_sum = 2*exp(-eps*n/tau)/n*cos(2*pi*f0*eps*n)
+                return flip(cumsum(to_sum)) 
+            def SigmaSP(N, eps, tau, f0):
+                from numpy import exp, pi, sin, flip, cumsum
+                n = np.arange(N//2-1, 0, -1)
+                to_sum = 2*exp(-eps*n/tau)/n*sin(2*pi*f0*eps*n)
+                return flip(cumsum(to_sum)) 
+            def sum2(N, eps, tau, f0):
+                from numpy import cumsum, flip, exp, sqrt, pi
+                n = np.arange(N//2-1, 0, -1)
+                to_sum = -exp(-n*eps/tau*sqrt(1+(2*pi*f0*tau)**2))/n
+                return flip(cumsum(to_sum))
+            
+            
+            #n = np.arange(N//2-1, 0, -1)
+
+            #bias = theory_mean -2 * (sum1(dt_ps, tau, f0, N) + sum2(n, dt_ps, tau, f0, N)) - ck_cosexp(N//2, dt_ps, tau, f0)
+
+            Ssp = SigmaSP(N, dt_ps, tau, f0)
+            Scp = SigmaCP(N, dt_ps, tau, f0)
+            Cp  = CP(N, dt_ps, f0)
+            Sp  = SP(N, dt_ps, f0)
+            
+            bias = np.ones(var.size)*theory_mean
+            bias[:-1] -= 2*(np.sqrt((Cp*Scp + Sp*Ssp)**2 + (Cp*Ssp - Sp*Scp)**2) + sum2(N, dt_ps, tau, f0))
+            bias[-1] = bias[-2] - ck_cosexp(N//2, dt_ps, tau, f0)
+            
+            #bias = theory_mean - 2*(np.sqrt((Cp*Scp + Sp*Ssp)**2 + (Cp*Ssp - Sp*Scp)**2) + \
+            #        sum2(N, dt_ps, tau, f0)) - ck_cosexp(N//2, dt_ps, tau, f0)
+
+            fit_variables = {'R0': R0, 'tau': tau, 'f0': f0}
+        
+        elif acf is not None and dt is not None:
+            
+            dt_ps = dt/1000
+            time = np.arange(len(acf))*dt_ps
+            time = time[time<=100]
+
+            from scipy.signal import hilbert
+            analytic_signal = hilbert(acf)
+            amplitude_envelope = np.abs(analytic_signal)
+            instantaneous_phase = np.unwrap(np.angle(analytic_signal))
+            instantaneous_frequency = (np.diff(instantaneous_phase)/(2.0*np.pi)/dt_ps)
+
+            envf = amplitude_envelope[:len(time)]
+            print (time.shape, envf.shape)
+
+            def exp_decay(t, tau):
+                return np.exp(-t/tau)
+            popt, pcov = curve_fit(exp_decay, time, envf/envf[0], p0 = [1])
+            tau = popt[0]
+            f0 = instantaneous_frequency.mean()
+            print('Guess for tau: {:.2e} +/- {:.2e} ps'.format(tau, pcov[0,0]))
+            print('Guess for f0: {:.2e} THz'.format(f0))
+
+            try:
+                acff = acf[:len(time)]
+                popt, pcov = curve_fit(cosexp, time, acff, p0 = [acff[0], tau, f0])
+            except:
+                raise ValueError('Parameters of the `cosexp` method cannot be estimated.')
+            R0 = popt[0]
+            tau = popt[1]
+            f0 = popt[2]
+            fit_variables = {'R0': R0, 'tau': tau, 'f0': f0}
+
+            print('Estimated parameters:')
+            print('R0  = {:.2e} +/- {:.2e}'.format(R0,  np.sqrt(pcov[0,0])))
+            print('tau = {:.2f} +/- {:.2f} ps'.format(tau, np.sqrt(pcov[1,1])))
+            print('f0  = {:.2f} +/- {:.2f} THz'.format(f0,  np.sqrt(pcov[2,2])))
+            
+            #n = np.arange(ck.size - 2, -1, -1)
+            #print(n.size)
+            #print(n)
+            #to_sum = ck_cosexp(n, dt_ps, tau, f0)
+            #bias = theory_mean - np.flip(2*(np.cumsum(to_sum))) - ck_cosexp(N//2, dt_ps, tau, f0)
+
+            pstar = np.arange(ck.size-2, 0, -1) # ck.size = N/2, so ck.size-2 lets the range start from N/2-1
+            bias = theory_mean - 2*np.flip(np.cumsum(ck_cosexp_ub(pstar, dt_ps, tau, f0))) - 2*ck_cosexp_ub(ck.size, dt_ps, tau, f0)
+
+        else:
+            raise ValueError('`acf` and `dt` must be provided to estimate the cepstral coefficients decay with the `cosexp` method.')
+        
+
+
+    
+    else:
+        raise ValueError('The variable `decay` must either be equal to "cosexp" (default) or "power law".')
+
+    return bias**2 + var, fit_variables, bias, var, bias_orig
+
+########################################################################################################################
+
+def dct_MSE(logpsd, theory_var=None, theory_mean=None, dt = 1, window_freq_THz = None):
+    
+    from scipy.optimize import curve_fit
+    from scipy.stats import linregress
+
+    N = 2 * (logpsd.size - 1)
+    
+    
+    # Compute mean and variance of the cepstral coefficients
+    eulergamma = 0.57721566490153286060651209008240243104215933593992
+
+    if theory_var is None:
+        theory_var = np.pi**2 / 6. / N   # otherwise
+    else:
+        theory_var = theory_var[1]
+
+    if theory_mean is None:
+        theory_mean = -eulergamma
+    else:
+        theory_mean = theory_mean[1]
+
+    pstar = np.arange(1, N // 2 + 1)
+    var = theory_var * (4*pstar-2)
+
+    # 1. Provide a gross and uncontrolled estimate of the smooth PSD via a moving average
+    df = 1/dt/N*1000 #THz
+    if window_freq_THz is None:
+        window_freq_THz = 1.0
+    window = 2*(int(window_freq_THz / df) // 2) + 1
+    print('Savitzki-Golay smoothing window width = {:.2f} THz = {:d} points'.format(window_freq_THz, window))
+    if window < 10:
+        print('The window is likely too narrow. Please set a larger value of `window_freq_THz`.')
+    #smoothed_logpsd = pd.Series(logpsd).rolling(window = window).mean().shift(1-window).fillna(method = 'ffill').to_numpy()
+
+    import warnings
+    from scipy.signal import savgol_filter
+    with warnings.catch_warnings():
+        warnings.filterwarnings('error')
+        try:
+            smoothed_logpsd = savgol_filter(logpsd, window_length = window, polyorder = 3)
+        except np.RankWarning:
+            smoothed_logpsd = pd.Series(logpsd).rolling(window = window).mean().shift(1-window).fillna(method = 'ffill').to_numpy()
+
+    from scipy.interpolate import interp1d
+    smoothed_logpsd_2 = pd.Series(logpsd).rolling(window = window).mean().shift(1-window).fillna(method = 'ffill').to_numpy()[::window]
+    x_ = np.linspace(0, 1, smoothed_logpsd_2.size, endpoint = True)
+    sfunc = interp1d(x_, smoothed_logpsd_2, kind = 'cubic')
+    x_ = np.linspace(0, 1, logpsd.size, endpoint = True)
+    smoothed_logpsd_2 = sfunc(x_)
+
+    #from scipy.signal import resample, decimate
+    #from scipy.interpolate import interp1d
+    #smoothed_logpsd_2 = decimate(logpsd, int(logpsd.size/window), ftype = 'fir')
+    #x_ = np.linspace(0, 1, smoothed_logpsd_2.size, endpoint = True)
+    #sfunc = interp1d(x_, smoothed_logpsd_2, kind = 'cubic')
+    #x_ = np.linspace(0, 1, logpsd.size, endpoint = True)
+    #smoothed_logpsd_2 = sfunc(x_)
+    # 1b. Down-sample the smoothed logpsd and interpolate it with a quadratic function (this removes any residual noise)
+    #fro scipy.interpolate import interp1d
+    #ds = smoothed_logpsd.size // 200
+    #ds_logpsd = smoothed_logpsd[0:-1:ds]
+    #x = np.linspace(0, 1, ds_logpsd.size)
+    #interp_logpsd = interp1d(x, ds_logpsd, kind = 'quadratic')
+    #x = np.linspace(0, 1, smoothed_logpsd.size)
+    #smoothed_logpsd = interp_logpsd(x)
+    #del interp_logpsd
+    #del ds_logpsd
+
+    # 2. Compute the gross cepstrum
+    smoothed_cepstrum = dct(smoothed_logpsd, type = 1) / N
+    smoothed_cepstrum_2 = dct(smoothed_logpsd_2, type = 1) / N
+
+    # 3. Compute the bias
+    #bias = np.ones(var.size)*theory_mean
+    #bias = np.zeros(var.size)
+    bias = np.copy(smoothed_cepstrum[1:])
+    #bias = np.copy(smoothed_cepstrum_2[1:])
+    bias[0:-1] *= 2
+    bias = -np.flip(np.cumsum(np.flip(bias)))
+    #cs = np.flip(2*np.cumsum(smoothed_cepstrum[-2:0:-1])) # Start from P=N/2-1 and end on P=1, then flip
+    # TODO: do I have to include the trivial bias or not?
+    #bias[:-1] = - cs
+    #bias[-1] = bias[-2] - smoothed_cepstrum[-1]
+
+    del smoothed_logpsd
+    del smoothed_logpsd_2
+    #del sfunc
+    #del smoothed_cepstrum
+
+    return bias**2 + var, bias, var, [smoothed_cepstrum, smoothed_cepstrum_2] #fit_variables, bias, var, bias_orig
+
+########################################################################################################################
 
 def dct_AIC(yk, theory_var=None):
     """AIC[K] = sum_{k>K} c_k^2/theory_var + 2*(K+1)
