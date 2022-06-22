@@ -121,6 +121,12 @@ class CepstralFilter(object):
             self.aic = aic.dct_AIC(self.logpsdK, ck_theory_var)
         elif (aic_type == 'aicc'):
             self.aic = aic.dct_AICc(self.logpsdK, ck_theory_var)
+        elif (aic_type == 'mmse' or aic_type == 'MMSE'):
+            self.aic, self.bias, self.var, self.smoothed_cepstrum = aic.dct_MSE(self.samplelogpsd,
+                                                        theory_var = ck_theory_var,
+                                                        theory_mean = psd_theory_mean,
+                                                        dt = dt,
+                                                        window_freq_THz = MMSE_window_THz) 
         else:
             raise ValueError('AIC type not valid.')
         self.aic_type = aic_type
