@@ -101,7 +101,7 @@ class CepstralFilter(object):
     p_aic... = Bayesian AIC weighting stuff
     """
 
-    def __init__(self, samplelogpsd, ck_theory_var=None, psd_theory_mean=None, aic_type='aic', traj = None, dt = None, MMSE_window_THz = None):
+    def __init__(self, samplelogpsd, ck_theory_var=None, psd_theory_mean=None, aic_type='aic', traj = None, dt = None, MMSE_window_THz = None, is_self_consistent = True, initial_P = None):
 
         if not isinstance(samplelogpsd, np.ndarray):
             raise TypeError('samplelogpsd should be an object of type numpy.ndarray')
@@ -126,7 +126,10 @@ class CepstralFilter(object):
                                                         theory_var = ck_theory_var,
                                                         theory_mean = psd_theory_mean,
                                                         dt = dt,
-                                                        window_freq_THz = MMSE_window_THz) 
+                                                        window_freq_THz = MMSE_window_THz,
+                                                        is_self_consistent = is_self_consistent,
+                                                        initial_P = initial_P)
+            self.MMSE_window_THz = MMSE_window_THz
         else:
             raise ValueError('AIC type not valid.')
         self.aic_type = aic_type

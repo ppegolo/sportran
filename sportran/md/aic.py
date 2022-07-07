@@ -4,6 +4,31 @@ import numpy as np
 import pandas as pd
 from scipy.fft import dct
 
+def dct_filter_psd(y, K=None):
+    # Copied from cepstral.py to avoid circular import
+    # K=P*-1 is the maximum coefficient summed (c_k = 0 for k > K)
+    if (K >= y.size):
+        log.write_log('! Warning:  dct_filter_psd K value ({:}) out of range.'.format(K))
+        return np.full(y.size, np.NaN)
+    yk = dct(y, type=1)
+    if K is not None:
+        yk[K + 1:] = 0.
+    ynew = dct(yk, type=1) / (y.size - 1) * 0.5
+    return ynew
+
+def dct_coefficients(y):
+    # Copied from cepstral.py to avoid circular import
+    """Compute the normalized Discrete Cosine Transform coefficients of y.
+        yk = 0.5 * DCT(y) / (N-1)"""
+    yk = dct(y, type=1) / (y.size - 1) * 0.5   # normalization
+    return yk
+
+def compute_bias(logpsd, theory_mean): 
+    bias_ = np.copy(dct_coefficients(logpsd))[1:]
+    bias_[:-1] *= 2
+    bias = theory_mean - np.flip(np.cumsum(np.flip(bias_)))
+    return bias
+
 ########################################################################################################################
 # Minimize the Mean Square Error MSE[L_0^*] = bias[L_0^*]**2 + Var[L_0^*]
 
@@ -197,7 +222,7 @@ def dct_MSE_analytic(ck, theory_var=None, theory_mean=None, init_pstar=None, dec
 
 ########################################################################################################################
 
-def dct_MSE(logpsd, theory_var=None, theory_mean=None, dt = 1, window_freq_THz = None):
+def dct_MSE(logpsd, theory_var=None, theory_mean=None, dt = 1, window_freq_THz = None, is_self_consistent = True, initial_P = None):
     
     from scipy.optimize import curve_fit
     from scipy.stats import linregress
@@ -221,72 +246,109 @@ def dct_MSE(logpsd, theory_var=None, theory_mean=None, dt = 1, window_freq_THz =
     pstar = np.arange(1, N // 2 + 1)
     var = theory_var * (4*pstar-2)
 
-    # 1. Provide a gross and uncontrolled estimate of the smooth PSD via a moving average
-    df = 1/dt/N*1000 #THz
-    if window_freq_THz is None:
-        window_freq_THz = 1.0
-    window = 2*(int(window_freq_THz / df) // 2) + 1
-    print('Savitzki-Golay smoothing window width = {:.2f} THz = {:d} points'.format(window_freq_THz, window))
-    if window < 10:
-        print('The window is likely too narrow. Please set a larger value of `window_freq_THz`.')
-    #smoothed_logpsd = pd.Series(logpsd).rolling(window = window).mean().shift(1-window).fillna(method = 'ffill').to_numpy()
+    if is_self_consistent:
 
-    import warnings
-    from scipy.signal import savgol_filter
-    with warnings.catch_warnings():
-        warnings.filterwarnings('error')
-        try:
-            smoothed_logpsd = savgol_filter(logpsd, window_length = window, polyorder = 3)
-        except np.RankWarning:
-            smoothed_logpsd = pd.Series(logpsd).rolling(window = window).mean().shift(1-window).fillna(method = 'ffill').to_numpy()
+        # 1. Select an initial value for P
+        if initial_P is None:
+            # Choose it of the order of 10~15 ps
+            initial_P = np.min([np.random.randint(int(10000.0/dt), int(20000.0/dt)), N//2])
 
-    from scipy.interpolate import interp1d
-    smoothed_logpsd_2 = pd.Series(logpsd).rolling(window = window).mean().shift(1-window).fillna(method = 'ffill').to_numpy()[::window]
-    x_ = np.linspace(0, 1, smoothed_logpsd_2.size, endpoint = True)
-    sfunc = interp1d(x_, smoothed_logpsd_2, kind = 'cubic')
-    x_ = np.linspace(0, 1, logpsd.size, endpoint = True)
-    smoothed_logpsd_2 = sfunc(x_)
+        K_new = initial_P - 1
+        K = -1
+        print('scMMSE: initial K = {:d}'.format(K_new))
 
-    #from scipy.signal import resample, decimate
-    #from scipy.interpolate import interp1d
-    #smoothed_logpsd_2 = decimate(logpsd, int(logpsd.size/window), ftype = 'fir')
-    #x_ = np.linspace(0, 1, smoothed_logpsd_2.size, endpoint = True)
-    #sfunc = interp1d(x_, smoothed_logpsd_2, kind = 'cubic')
-    #x_ = np.linspace(0, 1, logpsd.size, endpoint = True)
-    #smoothed_logpsd_2 = sfunc(x_)
-    # 1b. Down-sample the smoothed logpsd and interpolate it with a quadratic function (this removes any residual noise)
-    #fro scipy.interpolate import interp1d
-    #ds = smoothed_logpsd.size // 200
-    #ds_logpsd = smoothed_logpsd[0:-1:ds]
-    #x = np.linspace(0, 1, ds_logpsd.size)
-    #interp_logpsd = interp1d(x, ds_logpsd, kind = 'quadratic')
-    #x = np.linspace(0, 1, smoothed_logpsd.size)
-    #smoothed_logpsd = interp_logpsd(x)
-    #del interp_logpsd
-    #del ds_logpsd
+        biases = []
+        max_num = 1000
+        isc = 0
+        while K_new != K and isc <= max_num:
 
-    # 2. Compute the gross cepstrum
-    smoothed_cepstrum = dct(smoothed_logpsd, type = 1) / N
-    smoothed_cepstrum_2 = dct(smoothed_logpsd_2, type = 1) / N
+            K = K_new
+            # 2. Compute the filtered logspectrum
+            filtered_logpsd = dct_filter_psd(logpsd, K)
+            
+            # 3. Compute the bias according to filtered_logpsd
+            #bias = np.copy(dct(filtered_logpsd, type = 1) / N)[1:]
+            bias = compute_bias(filtered_logpsd, theory_mean)
+            biases.append(bias)
+            # 4. Minimize the MSE
+            MSE = bias**2 + var
+            MSE_min = np.min(MSE)
+            MSE_Kmin = np.argmin(MSE)
 
-    # 3. Compute the bias
-    #bias = np.ones(var.size)*theory_mean
-    #bias = np.zeros(var.size)
-    bias = np.copy(smoothed_cepstrum[1:])
-    #bias = np.copy(smoothed_cepstrum_2[1:])
-    bias[0:-1] *= 2
-    bias = -np.flip(np.cumsum(np.flip(bias)))
-    #cs = np.flip(2*np.cumsum(smoothed_cepstrum[-2:0:-1])) # Start from P=N/2-1 and end on P=1, then flip
-    # TODO: do I have to include the trivial bias or not?
-    #bias[:-1] = - cs
-    #bias[-1] = bias[-2] - smoothed_cepstrum[-1]
+            print('scMMSE: step {isc:>4d}: MSE_Kmin = {kmin:>{nnum:d}d}, MSE_min = {mmse:.2f}'.format(isc = isc+1, kmin = MSE_Kmin, nnum = len(str(logpsd.size)), mmse = MSE_min))
 
-    del smoothed_logpsd
-    del smoothed_logpsd_2
-    #del sfunc
-    #del smoothed_cepstrum
+            K_new = MSE_Kmin
+            isc += 1
+        
+        return bias**2 + var, bias, var, biases 
 
-    return bias**2 + var, bias, var, [smoothed_cepstrum, smoothed_cepstrum_2] #fit_variables, bias, var, bias_orig
+    else:
+        # 1. Provide a gross and uncontrolled estimate of the smooth PSD via a moving average
+        df = 1/dt/N*1000 #THz
+        if window_freq_THz is None:
+            window_freq_THz = 1.0
+        window = 2*(int(window_freq_THz / df) // 2) + 1
+        print('Savitzki-Golay smoothing window width = {:.2f} THz = {:d} points'.format(window_freq_THz, window))
+        if window < 10:
+            print('The window is likely too narrow. Please set a larger value of `window_freq_THz`.')
+        #smoothed_logpsd = pd.Series(logpsd).rolling(window = window).mean().shift(1-window).fillna(method = 'ffill').to_numpy()
+
+        import warnings
+        from scipy.signal import savgol_filter
+        with warnings.catch_warnings():
+            warnings.filterwarnings('error')
+            try:
+                smoothed_logpsd = savgol_filter(logpsd, window_length = window, polyorder = 3)
+            except np.RankWarning:
+                smoothed_logpsd = pd.Series(logpsd).rolling(window = window).mean().shift(1-window).fillna(method = 'ffill').to_numpy()
+
+        from scipy.interpolate import interp1d
+        smoothed_logpsd_2 = pd.Series(logpsd).rolling(window = window).mean().shift(1-window).fillna(method = 'ffill').to_numpy()[::window]
+        x_ = np.linspace(0, 1, smoothed_logpsd_2.size, endpoint = True)
+        sfunc = interp1d(x_, smoothed_logpsd_2, kind = 'cubic')
+        x_ = np.linspace(0, 1, logpsd.size, endpoint = True)
+        smoothed_logpsd_2 = sfunc(x_)
+
+        #from scipy.signal import resample, decimate
+        #from scipy.interpolate import interp1d
+        #smoothed_logpsd_2 = decimate(logpsd, int(logpsd.size/window), ftype = 'fir')
+        #x_ = np.linspace(0, 1, smoothed_logpsd_2.size, endpoint = True)
+        #sfunc = interp1d(x_, smoothed_logpsd_2, kind = 'cubic')
+        #x_ = np.linspace(0, 1, logpsd.size, endpoint = True)
+        #smoothed_logpsd_2 = sfunc(x_)
+        # 1b. Down-sample the smoothed logpsd and interpolate it with a quadratic function (this removes any residual noise)
+        #fro scipy.interpolate import interp1d
+        #ds = smoothed_logpsd.size // 200
+        #ds_logpsd = smoothed_logpsd[0:-1:ds]
+        #x = np.linspace(0, 1, ds_logpsd.size)
+        #interp_logpsd = interp1d(x, ds_logpsd, kind = 'quadratic')
+        #x = np.linspace(0, 1, smoothed_logpsd.size)
+        #smoothed_logpsd = interp_logpsd(x)
+        #del interp_logpsd
+        #del ds_logpsd
+
+        # 2. Compute the gross cepstrum
+        smoothed_cepstrum = dct(smoothed_logpsd, type = 1) / N
+        smoothed_cepstrum_2 = dct(smoothed_logpsd_2, type = 1) / N
+
+        # 3. Compute the bias
+        #bias = np.ones(var.size)*theory_mean
+        #bias = np.zeros(var.size)
+        bias = np.copy(smoothed_cepstrum[1:])
+        #bias = np.copy(smoothed_cepstrum_2[1:])
+        bias[0:-1] *= 2
+        bias = -np.flip(np.cumsum(np.flip(bias)))
+        #cs = np.flip(2*np.cumsum(smoothed_cepstrum[-2:0:-1])) # Start from P=N/2-1 and end on P=1, then flip
+        # TODO: do I have to include the trivial bias or not?
+        #bias[:-1] = - cs
+        #bias[-1] = bias[-2] - smoothed_cepstrum[-1]
+
+        #del smoothed_logpsd
+        del smoothed_logpsd_2
+        #del sfunc
+        #del smoothed_cepstrum
+
+        return bias**2 + var, bias, var, [smoothed_logpsd, smoothed_cepstrum, smoothed_cepstrum_2] #fit_variables, bias, var, bias_orig
 
 ########################################################################################################################
 

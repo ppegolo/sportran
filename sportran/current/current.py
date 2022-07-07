@@ -341,7 +341,7 @@ class Current(MDSample):
                 raise RuntimeError('self.ndf_chi cannot be None.')
             self.ck_THEORY_var, self.psd_THEORY_mean = multicomp_cepstral_parameters(self.NFREQS, self.ndf_chi)
 
-    def cepstral_analysis(self, aic_type='aic', aic_Kmin_corrfactor=1.0, manual_cutoffK=None, MMSE_window_THz=None):
+    def cepstral_analysis(self, aic_type='aic', aic_Kmin_corrfactor=1.0, manual_cutoffK=None, MMSE_window_THz=None, is_self_consistent=True,initial_P=None):
         """
         Performs Cepstral Analysis on the Current's trajectory.
 
@@ -362,19 +362,32 @@ class Current(MDSample):
         The log of the analysis can be retried from the variable `self.cepstral_log`.
         """
 
-        if MMSE_window_THz is None:
-            self.cepf = CepstralFilter(self.logpsd,
-                                       ck_theory_var = self.ck_THEORY_var, 
-                                       psd_theory_mean = self.psd_THEORY_mean, 
-                                       aic_type=aic_type)
-        else:
+        if is_self_consistent is not None:
             self.cepf = CepstralFilter(self.logpsd, 
                                        ck_theory_var = self.ck_THEORY_var, 
                                        psd_theory_mean = self.psd_THEORY_mean, 
                                        aic_type=aic_type,
                                        traj = self.traj,
                                        dt = self.DT_FS,
-                                       MMSE_window_THz = MMSE_window_THz)
+                                       MMSE_window_THz = MMSE_window_THz,
+                                       is_self_consistent = is_self_consistent,
+                                       initial_P = initial_P)
+        else:
+            if MMSE_window_THz is None:
+                self.cepf = CepstralFilter(self.logpsd,
+                                           ck_theory_var = self.ck_THEORY_var, 
+                                           psd_theory_mean = self.psd_THEORY_mean, 
+                                           aic_type=aic_type)
+            else:
+                self.cepf = CepstralFilter(self.logpsd, 
+                                           ck_theory_var = self.ck_THEORY_var, 
+                                           psd_theory_mean = self.psd_THEORY_mean, 
+                                           aic_type=aic_type,
+                                           traj = self.traj,
+                                           dt = self.DT_FS,
+                                           MMSE_window_THz = MMSE_window_THz,
+                                           is_self_consistent = is_self_consistent,
+                                           initial_P = initial_P)
         self.cepf.scan_filter_tau(cutoffK=manual_cutoffK, aic_Kmin_corrfactor=aic_Kmin_corrfactor)
         self.kappa = self.cepf.tau_cutoffK * self.KAPPA_SCALE * 0.5
         self.kappa_std = self.cepf.tau_std_cutoffK * self.KAPPA_SCALE * 0.5
@@ -389,6 +402,8 @@ class Current(MDSample):
         else:
             self.cepstral_log += \
                 '  cutoffK  = (P*-1) = {:d}  (manual, AIC_Kmin = {:d})\n'.format(self.cepf.cutoffK, self.cepf.aic_Kmin, self.cepf.aic_Kmin_corrfactor)
+        self.cepstral_log += \
+                '  physical cutoffK = eps*(P*-1) = {:.2f} ps\n'.format(self.cepf.cutoffK*self.DT_FS/1000)
         self.cepstral_log += \
               '  L_0*   = {:18f} +/- {:10f}\n'.format(self.cepf.logtau_cutoffK, self.cepf.logtau_std_cutoffK) +\
               '  S_0*   = {:18f} +/- {:10f}\n'.format(self.cepf.tau_cutoffK, self.cepf.tau_std_cutoffK) +\
@@ -446,7 +461,7 @@ Current.set_plotter()
 ################################################################################
 
 
-def fstar_analysis(x, TSKIP_LIST, aic_type='aic', aic_Kmin_corrfactor=1.0, manual_cutoffK=None, MMSE_window_THz=None, plot=True, axes=None,
+def fstar_analysis(x, TSKIP_LIST, aic_type='aic', aic_Kmin_corrfactor=1.0, manual_cutoffK=None, MMSE_window_THz=None, plot=True, axes=None, is_self_consistent=None, initial_P=None,
                    FIGSIZE=None, verbose=False, **plot_kwargs):   # yapf: disable
     """
     Perform cepstral analysis on a set of resampled time series, to study the effect of f*.
@@ -482,7 +497,7 @@ def fstar_analysis(x, TSKIP_LIST, aic_type='aic', aic_Kmin_corrfactor=1.0, manua
     for TSKIP in TSKIP_LIST:
         log.write_log('TSKIP = {:4d} - FSTAR = {:8g} THz'.format(TSKIP, x.Nyquist_f_THz / TSKIP))
         xff = x.resample(TSKIP=TSKIP, plot=False, verbose=verbose)
-        xff.cepstral_analysis(aic_type=aic_type, aic_Kmin_corrfactor=aic_Kmin_corrfactor, manual_cutoffK=manual_cutoffK, MMSE_window_THz=MMSE_window_THz)
+        xff.cepstral_analysis(aic_type=aic_type, aic_Kmin_corrfactor=aic_Kmin_corrfactor, manual_cutoffK=manual_cutoffK, MMSE_window_THz=MMSE_window_THz,is_self_consistent=is_self_consistent,initial_P=initial_P)
         xf.append(xff)
     FSTAR_THZ_LIST = [xff.Nyquist_f_THz for xff in xf]
 
