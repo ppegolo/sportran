@@ -341,7 +341,10 @@ class Current(MDSample):
                 raise RuntimeError('self.ndf_chi cannot be None.')
             self.ck_THEORY_var, self.psd_THEORY_mean = multicomp_cepstral_parameters(self.NFREQS, self.ndf_chi)
 
-    def cepstral_analysis(self, aic_type='aic', aic_Kmin_corrfactor=1.0, manual_cutoffK=None, MMSE_window_THz=None, is_self_consistent=True,initial_P=None):
+    def cepstral_analysis(self, aic_type='aic', aic_Kmin_corrfactor=1.0, manual_cutoffK=None, MMSE_window_THz=None,
+                          is_savgol=None,
+                          is_self_consistent=None,
+                          initial_P=None):
         """
         Performs Cepstral Analysis on the Current's trajectory.
 
@@ -362,7 +365,7 @@ class Current(MDSample):
         The log of the analysis can be retried from the variable `self.cepstral_log`.
         """
 
-        if is_self_consistent is not None:
+        if is_self_consistent is not None or is_savgol is not None:
             self.cepf = CepstralFilter(self.logpsd, 
                                        ck_theory_var = self.ck_THEORY_var, 
                                        psd_theory_mean = self.psd_THEORY_mean, 
@@ -371,6 +374,7 @@ class Current(MDSample):
                                        dt = self.DT_FS,
                                        MMSE_window_THz = MMSE_window_THz,
                                        is_self_consistent = is_self_consistent,
+                                       is_savgol = is_savgol,
                                        initial_P = initial_P)
         else:
             if MMSE_window_THz is None:
@@ -386,7 +390,7 @@ class Current(MDSample):
                                            traj = self.traj,
                                            dt = self.DT_FS,
                                            MMSE_window_THz = MMSE_window_THz,
-                                           is_self_consistent = is_self_consistent,
+                                           is_savgol = is_savgol,
                                            initial_P = initial_P)
         self.cepf.scan_filter_tau(cutoffK=manual_cutoffK, aic_Kmin_corrfactor=aic_Kmin_corrfactor)
         self.kappa = self.cepf.tau_cutoffK * self.KAPPA_SCALE * 0.5
@@ -447,10 +451,35 @@ class Current(MDSample):
         else:
             return xf
 
-    def fstar_analysis(self, TSKIP_LIST, aic_type='aic', aic_Kmin_corrfactor=1.0, manual_cutoffK=None, MMSE_window_THz=None, plot=True,
-                       axes=None, FIGSIZE=None, verbose=False, **plot_kwargs):   # yapf: disable
-        return fstar_analysis(self, TSKIP_LIST, aic_type, aic_Kmin_corrfactor, manual_cutoffK, MMSE_window_THz, plot, axes, FIGSIZE,
-                              verbose, **plot_kwargs)
+    def fstar_analysis(self, TSKIP_LIST, 
+                       aic_type='aic', 
+                       aic_Kmin_corrfactor=1.0, 
+                       manual_cutoffK=None, 
+                       is_savgol = None,
+                       MMSE_window_THz = None, 
+                       is_self_consistent = None,
+                       initial_P = None,
+                       plot=True,
+                       axes=None, 
+                       FIGSIZE=None, 
+                       verbose=False, 
+                       **plot_kwargs):   # yapf: disable
+        
+        return fstar_analysis(self, TSKIP_LIST,
+                              aic_type = aic_type, 
+                              aic_Kmin_corrfactor = aic_Kmin_corrfactor, 
+                              manual_cutoffK = manual_cutoffK, 
+                              is_savgol = is_savgol,
+                              MMSE_window_THz = MMSE_window_THz, 
+                              is_self_consistent = is_self_consistent,
+                              initial_P = initial_P,
+                              plot = plot, 
+                              axes = axes, 
+                              FIGSIZE = FIGSIZE, 
+                              verbose = verbose,
+                              **plot_kwargs)
+        #return fstar_analysis(self, TSKIP_LIST, aic_type, aic_Kmin_corrfactor, manual_cutoffK, MMSE_window_THz, plot, is_self_consistent, axes, FIGSIZE,
+        #                     verbose, **plot_kwargs)
 
 
 ################################################################################
@@ -461,8 +490,19 @@ Current.set_plotter()
 ################################################################################
 
 
-def fstar_analysis(x, TSKIP_LIST, aic_type='aic', aic_Kmin_corrfactor=1.0, manual_cutoffK=None, MMSE_window_THz=None, plot=True, axes=None, is_self_consistent=None, initial_P=None,
-                   FIGSIZE=None, verbose=False, **plot_kwargs):   # yapf: disable
+def fstar_analysis(x, TSKIP_LIST,
+                   aic_type='aic', 
+                   aic_Kmin_corrfactor=1.0, 
+                   manual_cutoffK=None, 
+                   is_savgol=None,
+                   MMSE_window_THz=None, 
+                   is_self_consistent=None,
+                   initial_P=None,
+                   plot=True, 
+                   axes=None, 
+                   FIGSIZE=None, 
+                   verbose=False, 
+                   **plot_kwargs):   # yapf: disable
     """
     Perform cepstral analysis on a set of resampled time series, to study the effect of f*.
     For each TSKIP in TSKIP_LIST, the HeatCurrent x is filtered & resampled, and then cesptral-analysed.
@@ -497,7 +537,10 @@ def fstar_analysis(x, TSKIP_LIST, aic_type='aic', aic_Kmin_corrfactor=1.0, manua
     for TSKIP in TSKIP_LIST:
         log.write_log('TSKIP = {:4d} - FSTAR = {:8g} THz'.format(TSKIP, x.Nyquist_f_THz / TSKIP))
         xff = x.resample(TSKIP=TSKIP, plot=False, verbose=verbose)
-        xff.cepstral_analysis(aic_type=aic_type, aic_Kmin_corrfactor=aic_Kmin_corrfactor, manual_cutoffK=manual_cutoffK, MMSE_window_THz=MMSE_window_THz,is_self_consistent=is_self_consistent,initial_P=initial_P)
+        xff.cepstral_analysis(aic_type=aic_type, aic_Kmin_corrfactor=aic_Kmin_corrfactor, manual_cutoffK=manual_cutoffK, MMSE_window_THz=MMSE_window_THz,
+                              is_savgol=is_savgol,
+                              is_self_consistent=is_self_consistent,
+                              initial_P=initial_P)
         xf.append(xff)
     FSTAR_THZ_LIST = [xff.Nyquist_f_THz for xff in xf]
 
