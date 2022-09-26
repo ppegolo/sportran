@@ -57,8 +57,8 @@ def dct_MSE(logpsd, theory_var=None, theory_mean=None, dt = 1, window_freq_THz =
         theory_mean = theory_mean[1]
 
     pstar = np.arange(1, N // 2 + 1)
-    var = theory_var * (4*pstar-2)
-    MSE_bias = (N//2 - pstar) * N*theory_var  # This is the bias on the estimator of the bias (theory_var is already divided by N)
+    var = theory_var * ((4*pstar-2) + (4*pstar-4*pstar**2-2)/N)
+    MSE_bias = 0 #(2*N - 4*pstar + 1) * N*theory_var  # This is the bias on the estimator of the bias (theory_var is already divided by N)
 
     if is_self_consistent:
 
