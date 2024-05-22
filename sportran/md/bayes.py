@@ -12,6 +12,7 @@ import time
 
 __all__ = ['BayesFilter']
 EULER_GAMMA = 0.57721566490153286060651209008240243104215933593992   # Euler-Mascheroni constant
+LOG2 = np.log(2)
 
 class BayesFilter(object):
     """
@@ -627,9 +628,17 @@ class BayesFilter(object):
         '''
         Logarithm of the Wishart probability density function.
         '''
+        from scipy.special import multigammaln
         spline = self.model(omega_fixed, w)
         # TODO: convert the notation from wikipedia to Baroni
-
+        X = data_*ell*nu
+        n = ell
+        p = 2
+        detX = np.linalg.det(X)
+        trinvV_X = np.trace(np.linalg.inv(V)@X)
+        log_pdf = 0.5 * ((n-p-1)*np.log(detX) - trinvV_X - n*p*LOG2 - n*np.log(np.linalg.det(V))) - multigammaln(0.5*n, 2)
+        
+        return np.sum(log_pdf)
 
     def log_likelihood_offdiag(self, w, omega, omega_fixed, data_, nu, ell):
         '''
