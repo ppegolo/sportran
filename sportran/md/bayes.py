@@ -623,7 +623,18 @@ class BayesFilter(object):
     #             np.log(sp.kv(0.5*(nu-1), np.abs(z)*one_frac_rho2))
     #     return np.sum(log_pdf)
 
+    def log_likelihood_wishart(self, w, omega, omega_fixed, data_, nu, ell):
+        '''
+        Logarithm of the Wishart probability density function.
+        '''
+        spline = self.model(omega_fixed, w)
+        # TODO: convert the notation from wikipedia to Baroni
+
+
     def log_likelihood_offdiag(self, w, omega, omega_fixed, data_, nu, ell):
+        '''
+        Logarithm of the Variance-Gamma probability density function.
+        '''
         spline = self.model(omega_fixed, w)
         rho = np.clip(spline(omega), -0.98, 0.98)
         _alpha = 1/(1-rho**2)
