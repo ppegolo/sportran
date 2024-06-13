@@ -630,13 +630,23 @@ class BayesFilter(object):
         '''
         from scipy.special import multigammaln
         spline = self.model(omega_fixed, w)
+        V = spline(omega)
         # TODO: convert the notation from wikipedia to Baroni
         X = data_*ell*nu
         n = ell
         p = 2
-        detX = np.linalg.det(X)
-        trinvV_X = np.trace(np.linalg.inv(V)@X)
-        log_pdf = 0.5 * ((n-p-1)*np.log(detX) - trinvV_X - n*p*LOG2 - n*np.log(np.linalg.det(V))) - multigammaln(0.5*n, 2)
+        a, b, d = X[...,0,0], X[...,0,1], X[...,1,1]
+        detX = a*d-b**2
+
+        # detX = np.linalg.det(X)
+        
+        a, b, d = V[...,0,0], V[...,0,1], V[...,1,1]
+        invV = (1/(a*d - b**2)*np.array([[d, -b],[-b, a]])).transpose(2,0,1)
+        trinvV_X = np.trace(invV@X, axis1 = 1, axis2 = 2)
+        detV = a*d-b**2
+        # trinvV_X = np.trace(np.linalg.inv(V)@X)
+
+        log_pdf = 0.5 * ((n-p-1)*np.log(detX) - trinvV_X - n*p*LOG2 - n*np.log(detV)) - multigammaln(0.5*n, 2)
         
         return np.sum(log_pdf)
 

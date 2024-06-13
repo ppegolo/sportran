@@ -10,6 +10,7 @@ import inspect
 from sportran.md.mdsample import MDSample
 from sportran.md.cepstral import CepstralFilter, multicomp_cepstral_parameters
 from sportran.md.bayes import BayesFilter
+from sportran.md.maxlike import MaxLikeFilter
 from sportran.md.tools.filter import runavefilter
 from sportran.md.tools.spectrum import freq_THz_to_red, freq_red_to_THz
 from . import units
@@ -395,6 +396,32 @@ class Current(MDSample, abc.ABC):
         log.write_log(self.bayesian_log)
         with open('bayesian_analysis_{}'.format(n_parameters), 'w+') as g:
             g.write('{}\t{}\n'.format(self.offdiag, self.offdiag_std))
+
+    def maxlike_estimate(self, model, 
+                         n_parameters, 
+                         mask = None,
+                         likelihood = 'wishart',
+                         solver = 'BFGS'
+                         ):
+  
+        self.maxlike = MaxLikeFilter(self.cospectrum, model, n_parameters, self.N_EQUIV_COMPONENTS,
+                                     mask = mask)
+        self.maxlike.maxlike(likelihood = likelihood, solver = solver)
+    
+        self.estimate = self.maxlike.parameters_mean[0]*self.maxlike.factor
+        try:
+            self.estimate_std = self.bayes.parameters_std[0]*self.maxlike.factor
+        except:
+            self.estimate_std = None
+
+        self.maxlike_log = \
+              '-----------------------------------------------------\n' +\
+              '  MAXIMUM LIKELIHOOD PARAMETER ESTIMATION\n' +\
+              '-----------------------------------------------------\n'
+        self.maxlike_log += \
+              '  L_01   = {:18f} +/- {:10f}\n'.format(self.estimate, self.estimate_std) +\
+              '-----------------------------------------------------\n'
+        log.write_log(self.maxlike_log)
 
     def cepstral_analysis(self, aic_type='aic', aic_Kmin_corrfactor=1.0, manual_cutoffK=None):
         """
