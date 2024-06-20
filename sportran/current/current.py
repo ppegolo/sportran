@@ -397,31 +397,44 @@ class Current(MDSample, abc.ABC):
         with open('bayesian_analysis_{}'.format(n_parameters), 'w+') as g:
             g.write('{}\t{}\n'.format(self.offdiag, self.offdiag_std))
 
-    def maxlike_estimate(self, model, 
+    def maxlike_estimate(self, 
+                         model, 
                          n_parameters, 
                          mask = None,
                          likelihood = 'wishart',
                          solver = 'BFGS'
                          ):
   
-        self.maxlike = MaxLikeFilter(self.cospectrum, model, n_parameters, self.N_EQUIV_COMPONENTS,
+        if likelihood.lower() != 'wishart':
+            raise NotImplementedError("Only Wishart sampling is implemented at the moment")
+        
+        if likelihood.lower() == 'wishart':
+            data = self.cospectrum.real # TODO figure out this business of real vs abs value
+
+        self.maxlike = MaxLikeFilter(data, 
+                                     model, 
+                                     n_parameters, 
+                                     self.N_EQUIV_COMPONENTS,
                                      mask = mask)
+
+        # TODO: go on from here        
         self.maxlike.maxlike(likelihood = likelihood, solver = solver)
     
-        self.estimate = self.maxlike.parameters_mean[0]*self.maxlike.factor
-        try:
-            self.estimate_std = self.bayes.parameters_std[0]*self.maxlike.factor
-        except:
-            self.estimate_std = None
+        # self.estimate = self.maxlike.parameters_mean[0]*self.maxlike.factor
+        
+        # try:
+        #     self.estimate_std = self.bayes.parameters_std[0]*self.maxlike.factor
+        # except:
+        #     self.estimate_std = None
 
-        self.maxlike_log = \
-              '-----------------------------------------------------\n' +\
-              '  MAXIMUM LIKELIHOOD PARAMETER ESTIMATION\n' +\
-              '-----------------------------------------------------\n'
-        self.maxlike_log += \
-              '  L_01   = {:18f} +/- {:10f}\n'.format(self.estimate, self.estimate_std) +\
-              '-----------------------------------------------------\n'
-        log.write_log(self.maxlike_log)
+        # self.maxlike_log = \
+        #       '-----------------------------------------------------\n' +\
+        #       '  MAXIMUM LIKELIHOOD PARAMETER ESTIMATION\n' +\
+        #       '-----------------------------------------------------\n'
+        # self.maxlike_log += \
+        #       '  L_01   = {:18f} +/- {:10f}\n'.format(self.estimate, self.estimate_std) +\
+        #       '-----------------------------------------------------\n'
+        # log.write_log(self.maxlike_log)
 
     def cepstral_analysis(self, aic_type='aic', aic_Kmin_corrfactor=1.0, manual_cutoffK=None):
         """

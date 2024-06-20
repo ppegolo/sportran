@@ -1,15 +1,22 @@
 # Methods to perform a bayesian estimation of the transport coefficients
 
 import numpy as np
+
 import emcee
-import scipy.special as sp
+
+
 from . import aic
 from .cepstral import dct_coefficients, dct_filter_psd, dct_filter_tau, CepstralFilter, multicomp_cepstral_parameters
 from .tools.filter import runavefilter
+
 from sportran.utils import log
 from multiprocessing import Pool
+
+import scipy.special as sp
 from scipy.special import multigammaln
 from scipy.optimize import minimize
+from scipy.linalg import cholesky
+
 import opt_einsum
 
 import time
@@ -20,56 +27,32 @@ LOG2 = np.log(2)
 
 class MaxLikeFilter(object):
     """
-    BAYESIAN ANALYSIS based filtering.
+    Maximum-likelihood estimate of the Onsager or transport coefficient.
 
     ** INPUT VARIABLES:
-    spectrum        = the original periodogram (if single-component) of spectral matrix (if multi-component)
-    is_offdiag      = If True, estimate the off-diagonal matrix element of the spectral matrix (default = True)
-    is_diag         = If True, estimate the diagonal matrix elements of the spectral matrix (default = False)
-    model           = the function that models the data (for now only spline)
-    n_parameters    = the number of parameters to be used for the fit
+    data            = The noisy data. Either the spectral matrix, or one of its components.
+    model           = Function that models the data (for now only spline)
+    n_parameters    = Number of parameters to be used for the fit
+    n_components    = Number of independent samples the data is generated from.
 
     ** INTERNAL VARIABLES:
-    samplelogpsd  = the original sample log-PSD - logpsd_THEORY_mean
 
-    logpsdK  = the cepstrum of the data, \\hat{C}_n (i.e. the DCT of samplelogpsd)
-    aic_min  = minimum value of the AIC
-    aic_Kmin = cutoffK that minimizes the AIC
-    aic_Kmin_corrfactor = aic_Kmin cutoff correction factor (default: 1.0)
-    cutoffK  = (P*-1) = cutoff used to compute logtau and logpsd (by default = aic_Kmin * aic_Kmin_corrfactor)
-    manual_cutoffK_flag = True if cutoffK was manually specified, False if aic_Kmin is being used
-
-    logtau          = filtered log(tau) as a function of cutoffK, L_0(P*-1)
-    logtau_cutoffK  = filtered log(tau) at cutoffK, L*_0
-    logtau_var_cutoffK = theoretical L*_0 variance
-    logtau_std_cutoffK = theoretical L*_0 standard deviation
-    logpsd          = filtered log-PSD at cutoffK
-
-    tau          = filtered tau as a function of cutoffK, S_0(P*-1)
-    tau_cutoffK  = filtered tau at cutoffK, S*_0
-    tau_var_cutoffK = theoretical S*_0 variance
-    tau_std_cutoffK = theoretical S*_0 standard deviation
-    psd          = filtered PSD at the specified cutoffK
-
-    p_aic... = Bayesian AIC weighting stuff
+    TODO
     """
 
-    def __init__(self, spectrum, model, n_parameters, n_components, 
-                 mask = None):
+    def __init__(self, data, model, n_parameters, n_components, mask = None):
 
-        if not isinstance(spectrum, np.ndarray):
-            raise TypeError('spectrum should be an object of type numpy.ndarray')
-        if spectrum.shape[0] != 2 or spectrum.shape[1] != 2:
-            raise TypeError('spectrum should be a 2x2xN numpy.ndarray')
+        assert isinstance(data, np.ndarray), "Noisy data should be numpy.ndarray"
+        assert data.shape[0] == data.shape[1] and len(data.shape)==3,  'Noisy data should be a 2x2xN numpy.ndarray'
         
-        self.spectrum = spectrum/n_components
+        self.data = data
         self.model = model
         self.mask = mask
         self.n_components = n_components
         self.n_parameters = n_parameters
 
     def __repr__(self):
-        msg = 'BayesFilter:\n' #+ \
+        msg = 'MaxLikeFilter:\n' #+ \
             #   '  AIC type  = {:}\n'.format(self.aic_type) + \
             #   '  AIC min   = {:f}\n'.format(self.aic_min) + \
             #   '  AIC_Kmin  = {:d}\n'.format(self.aic_Kmin)
@@ -87,73 +70,118 @@ class MaxLikeFilter(object):
     def maxlike(
             self,
             n_parameters = None,
-            likelihood = 'wishart',
-            solver = 'BFGS',
-            mask = None
+            likelihood = None,
+            solver = None,
+            mask = None,
+            guess_runave_window = 50
             ):
+        
+        def log_likelihood_wishart(w, model, omega, omega_fixed, data_, nu, ell):
+            '''
+            Logarithm of the Wishart probability density function.
+            '''        
+            n = ell
+            p = nu
+            multig = multigammaln(0.5*n, p)
+
+            # Compute scale matrix from the model (symmetrize to ensure positive definiteness)
+            spline = model(omega_fixed, w)
+            V = spline(omega)
+            V = opt_einsum.contract('wba,wbc->wac', V, V) / n # equiv to V.T@V for each frequency
+
+            # The argument of the PDF is the data
+            X = data_ 
+            
+            # Determinant of X
+            a, b, d = X[...,0,0], X[...,0,1], X[...,1,1]
+            detX = a*d - b**2
+            
+            # Determinant and inverse of V
+            a, b, d = V[...,0,0], V[...,0,1], V[...,1,1]
+            invV = (1/(a*d - b**2)*np.array([[d, -b],[-b, a]])).transpose(2,0,1)
+            detV = a*d - b**2
+
+            # Trace of the matrix product between the inverse of V and X
+            trinvV_X = opt_einsum.contract('wab,wba->w', invV, X)
+
+            # if detV.min() < 0 or detX.min() < 0:
+            #         print(detV.min(), detX.min())
+
+            # Sum pieces of the log-likelihood
+            log_pdf = - (0.5*(-n*p*LOG2 - n*np.log(detV) + (n-p-1)*np.log(detX) - trinvV_X) - multig)
+            
+            return np.sum(log_pdf)
+
 
         if n_parameters is None:
             n_parameters = self.n_parameters
 
+        assert likelihood is not None
+        assert solver is not None
+
+        # Define internal variables for consistent notation 
         nu = 2
         ell = self.n_components
-        
-        # Define noisy data
-        if mask is not None:
-            noisy_data = np.concatenate([self.spectrum.real[i, j][mask] for (i, j) in [[0,0], [0,1], [1,1]]])
-        else:
-            noisy_data = np.concatenate([self.spectrum.real[i, j] for (i, j) in [[0,0], [0,1], [1,1]]])
-
-        # Define initial guess for the optimization
-        try:
-            guess_data = runavefilter(noisy_data, 100)
-        except:
-            guess_data = runavefilter(noisy_data, 10)
-
-        args = np.int32(np.linspace(0, len(noisy_data) - 1, n_parameters, endpoint = True))
-
-        log.write_log('Maximum-likelihood estimate with {} parameters'.format(n_parameters))
-
-        p0 = guess_data
-        
-        omega = np.arange(noisy_data.size)
+        data = self.data
+        omega = np.arange(data.shape[-1])
+        args = np.int32(np.linspace(0, data.shape[-1] - 1, n_parameters, endpoint = True))
         omega_fixed = omega[args]
-
         self.omega = omega
         self.omega_fixed = omega_fixed
+        model = self.model
 
         if likelihood.lower() == 'wishart':
             log_like = self.log_likelihood_wishart
-        
-        mode = self.model
-        res = minimize(fun = lambda w, mode, omega, omega_fixed, noisy_data, nu, ell: -log_like(w, mode, omega, omega_fixed, noisy_data, nu, ell),
-                       x0 = p0,  
-                       args = (self.model, omega, omega_fixed, noisy_data, nu, ell),
+
+        # Define initial guess for the optimization
+        try:
+            guess_data = np.array([runavefilter(c, guess_runave_window) for c in data.reshape(-1,data.shape[-1])]).reshape(data.shape)
+            #TODO: worth using pandas or irrelevant?
+            # np.array([pd.Series(data_wishart[:,i]).rolling(window=50, 
+            #                                                        closed = 'left', 
+            #                                                        min_periods = 0, 
+            #                                                        center = True).mean().to_numpy() for i in range(4)]).T.reshape(-1, 2, 2)
+        except:
+            log.write_log(f'Guessing data with a running average with a {guess_runave_window} large window failed. Window changed to 10.')
+            guess_runave_window = 10
+            guess_data = np.array([runavefilter(c, guess_runave_window) for c in data.reshape(-1,data.shape[-1])]).reshape(data.shape)
+        # TODO: a lot of massaging: simplify?
+        guess_data = np.array([guess_data[:,:,j] for j in [np.argmin(np.abs(omega-omega_fixed[i])) for i in range(len(omega_fixed))]])
+        guess_data = np.array([cholesky(g, lower = False) for g in guess_data])/np.sqrt(ell)
+        guess_data = np.array([guess_data[:,0,0], guess_data[:,0,1], guess_data[:,1,1]]).reshape(-1)
+
+        data = data.transpose(2, 0, 1)
+
+        log.write_log('Maximum-likelihood estimate with {} parameters'.format(n_parameters))
+
+        res = minimize(fun = log_likelihood_wishart,
+            # fun = lambda w, _model, _omega, _omega_fixed, _data, _nu, _ell: -log_like(w, _model, _omega, _omega_fixed, _data, _nu, _ell),
+                       x0 = guess_data,  
+                       args = (model, omega, omega_fixed, data, nu, ell),
                        method = solver)
         
-        params = res.x
         try:
             cov = res.hess_inv
+            log.write_log(f'The {solver} solver features the calculation of the Hessian. The covariance matrix will be estimated through the Laplace approximation.')
         except:
-            log.write_log(f'The selected solver {solver} does not feature the calculation of the Hessian. No covariance matrix will be output.')
+            log.write_log(f'The {solver} solver does not feature the calculation of the Hessian. No covariance matrix will be output.')
             cov = None
         
         self.parameters_mean = res.x
-        # self.parameters_args = args
         if cov is not None:
             self.parameters_std = cov.diagonal()**0.5
-        self.noisy_data = noisy_data
+        self.data = data
 
   ################################################
 
     # Helper functions
-
+    
     def log_likelihood_wishart(w, model, omega, omega_fixed, data_, nu, ell):
         '''
         Logarithm of the Wishart probability density function.
         '''        
         n = ell
-        p = 2
+        p = nu
         multig = multigammaln(0.5*n, p)
 
         # Compute scale matrix from the model (symmetrize to ensure positive definiteness)
@@ -180,7 +208,7 @@ class MaxLikeFilter(object):
         #         print(detV.min(), detX.min())
 
         # Sum pieces of the log-likelihood
-        log_pdf = 0.5*(-n*p*LOG2 - n*np.log(detV) + (n-p-1)*np.log(detX) - trinvV_X) - multig
+        log_pdf = - (0.5*(-n*p*LOG2 - n*np.log(detV) + (n-p-1)*np.log(detX) - trinvV_X) - multig)
         
         return np.sum(log_pdf)
 
