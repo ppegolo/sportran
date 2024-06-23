@@ -17,6 +17,7 @@ from . import units
 from sportran.utils import log
 from sportran.plotter.current import CurrentPlotter
 import warnings
+from copy import deepcopy
 
 __all__ = ['Current']
 
@@ -399,10 +400,11 @@ class Current(MDSample, abc.ABC):
 
     def maxlike_estimate(self, 
                          model, 
-                         n_parameters, 
+                         n_parameters = 'AIC', 
                          mask = None,
                          likelihood = 'wishart',
-                         solver = 'BFGS'
+                         solver = 'BFGS',
+                         guess_runave_window = 50,
                          ):
   
         if likelihood.lower() != 'wishart':
@@ -411,15 +413,54 @@ class Current(MDSample, abc.ABC):
         if likelihood.lower() == 'wishart':
             data = self.cospectrum.real # TODO figure out this business of real vs abs value
 
-        self.maxlike = MaxLikeFilter(data, 
-                                     model, 
-                                     n_parameters, 
-                                     self.N_EQUIV_COMPONENTS,
-                                     mask = mask)
+        # Define MaxLikeFilter object
+        self.maxlike = MaxLikeFilter()
 
-        # TODO: go on from here        
-        self.maxlike.maxlike(likelihood = likelihood, solver = solver)
-    
+        if isinstance(n_parameters, int):
+            do_AIC = False
+            # Minimize the negative log-likelihood with a fixed number of parameters
+            self.maxlike.maxlike(model = model,
+                                 data = data, 
+                                 mask = mask,
+                                 n_components = self.N_EQUIV_COMPONENTS,
+                                 guess_runave_window = guess_runave_window, 
+                                 n_parameters = n_parameters, 
+                                 likelihood = likelihood, 
+                                 solver = solver)
+        
+        elif isinstance(n_parameters, list) or isinstance(n_parameters, np.ndarray):
+            do_AIC = True
+            assert np.issubdtype(np.asarray(n_parameters).dtype, np.integer), "`n_parameter` must be an integer array-like"
+            log.write_log(f'Optimal number of parameters between {np.min(n_parameters)} and {np.max(n_parameters)} chosen by AIC')
+
+        elif (isinstance(n_parameters, str) and n_parameters.lower() == 'aic'):
+            do_AIC = True
+            n_parameters = np.arange(3, 40)
+            log.write_log('Optimal number of parameters between 3 and 40 chosen by AIC')
+        
+        if do_AIC:
+            # Minimize the negative log-likelihood on a range of parameters and choose the best one with the AIC
+            _aic = []
+            _filters = []
+            for n_par in n_parameters:
+                log.write_log(f'n_parameters = {n_par}')
+                self.maxlike.maxlike(model = model,
+                                 data = data, 
+                                 mask = mask,
+                                 n_components = self.N_EQUIV_COMPONENTS,
+                                 guess_runave_window = guess_runave_window, 
+                                 n_parameters = n_par, 
+                                 likelihood = likelihood, 
+                                 solver = solver,
+                                 write_log = False)
+                _aic.append(self.maxlike.log_likelihood_value - n_par)
+                _filters.append(deepcopy(self.maxlike))
+            self.optimal_nparameters = n_parameters[np.argmax(_aic)]
+            self.maxlike = _filters[np.argmax(_aic)]
+            self.aic = np.max(_aic)
+            del _filters
+            del _aic 
+
         # self.estimate = self.maxlike.parameters_mean[0]*self.maxlike.factor
         
         # try:
