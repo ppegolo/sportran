@@ -406,6 +406,8 @@ class Current(MDSample, abc.ABC):
                          solver = 'BFGS',
                          guess_runave_window = 50,
                          ):
+        
+                
   
         if likelihood.lower() != 'wishart':
             raise NotImplementedError("Only Wishart sampling is implemented at the moment")
@@ -414,19 +416,18 @@ class Current(MDSample, abc.ABC):
             data = self.cospectrum.real # TODO figure out this business of real vs abs value
 
         # Define MaxLikeFilter object
-        self.maxlike = MaxLikeFilter()
+        self.maxlike = MaxLikeFilter(data = data, 
+                                     model = model, 
+                                     n_components = self.N_EQUIV_COMPONENTS, 
+                                     likelihood = likelihood,  
+                                     solver = solver)
 
         if isinstance(n_parameters, int):
             do_AIC = False
             # Minimize the negative log-likelihood with a fixed number of parameters
-            self.maxlike.maxlike(model = model,
-                                 data = data, 
-                                 mask = mask,
-                                 n_components = self.N_EQUIV_COMPONENTS,
+            self.maxlike.maxlike(mask = mask,
                                  guess_runave_window = guess_runave_window, 
-                                 n_parameters = n_parameters, 
-                                 likelihood = likelihood, 
-                                 solver = solver)
+                                 n_parameters = n_parameters)
         
         elif isinstance(n_parameters, list) or isinstance(n_parameters, np.ndarray):
             do_AIC = True
@@ -444,15 +445,11 @@ class Current(MDSample, abc.ABC):
             _filters = []
             for n_par in n_parameters:
                 log.write_log(f'n_parameters = {n_par}')
-                self.maxlike.maxlike(model = model,
-                                 data = data, 
-                                 mask = mask,
-                                 n_components = self.N_EQUIV_COMPONENTS,
-                                 guess_runave_window = guess_runave_window, 
-                                 n_parameters = n_par, 
-                                 likelihood = likelihood, 
-                                 solver = solver,
-                                 write_log = False)
+                self.maxlike.maxlike(mask = mask,
+                                     guess_runave_window = guess_runave_window, 
+                                     n_parameters = n_par,
+                                     write_log = False)
+                    
                 _aic.append(self.maxlike.log_likelihood_value - n_par)
                 _filters.append(deepcopy(self.maxlike))
             self.optimal_nparameters = n_parameters[np.argmax(_aic)]
@@ -460,6 +457,14 @@ class Current(MDSample, abc.ABC):
             self.aic = np.max(_aic)
             del _filters
             del _aic 
+
+        omega_fixed = self.maxlike.omega_fixed
+        params = self.maxlike.parameters_mean
+        params_std = self.maxlike.parameters_std
+
+        self.NLL_spline = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params)(x)))
+        self.NLL_spline_upper = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params + params_std)(x)))
+        self.NLL_spline_lower = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params - params_std)(x)))
 
         # self.estimate = self.maxlike.parameters_mean[0]*self.maxlike.factor
         
