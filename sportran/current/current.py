@@ -407,18 +407,20 @@ class Current(MDSample, abc.ABC):
                          guess_runave_window = 50,
                          ):
         
-                
-  
-        if likelihood.lower() != 'wishart':
-            raise NotImplementedError("Only Wishart sampling is implemented at the moment")
-        
         if likelihood.lower() == 'wishart':
             data = self.cospectrum.real # TODO figure out this business of real vs abs value
+        elif likelihood.lower() == 'chisquare' or likelihood.lower() == 'chisquared':
+            data = self.psd
+        elif likelihood == 'variancegamma' or likelihood == 'variance-gamma':
+            data = self.cospectrum.real[0,1]
+        else:
+            raise ValueError("Likelihood must be Wishart, Chi-square, or Variance-Gamma.")
 
         # Define MaxLikeFilter object
         self.maxlike = MaxLikeFilter(data = data, 
                                      model = model, 
                                      n_components = self.N_EQUIV_COMPONENTS, 
+                                     n_currents = self.N_CURRENTS, 
                                      likelihood = likelihood,  
                                      solver = solver)
 
@@ -445,16 +447,18 @@ class Current(MDSample, abc.ABC):
             _filters = []
             for n_par in n_parameters:
                 log.write_log(f'n_parameters = {n_par}')
-                self.maxlike.maxlike(mask = mask,
+                self.maxlike.maxlike(data = data, # FIXME: needs to be passed because maxlike.data has permuted dimensions
+                                     mask = mask,
                                      guess_runave_window = guess_runave_window, 
-                                     n_parameters = n_par,
+                                     n_parameters = int(n_par),
+                                     omega_fixed = None,
                                      write_log = False)
                     
                 _aic.append(self.maxlike.log_likelihood_value - n_par)
                 _filters.append(deepcopy(self.maxlike))
             self.optimal_nparameters = n_parameters[np.argmax(_aic)]
             self.maxlike = _filters[np.argmax(_aic)]
-            self.aic = np.max(_aic)
+            self.aic_values = np.array(_aic)
             del _filters
             del _aic 
 
@@ -462,10 +466,21 @@ class Current(MDSample, abc.ABC):
         params = self.maxlike.parameters_mean
         params_std = self.maxlike.parameters_std
 
-        self.NLL_spline = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params)(x)))
-        self.NLL_spline_upper = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params + params_std)(x)))
-        self.NLL_spline_lower = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params - params_std)(x)))
-
+        if likelihood == 'wishart':
+            self.NLL_spline = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params)(x)))
+            try:
+                self.NLL_spline_upper = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params + params_std)(x)))
+                self.NLL_spline_lower = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params - params_std)(x)))
+            except TypeError:
+                pass
+        else:
+            self.NLL_spline = model(omega_fixed, params)
+            try:
+                self.NLL_spline_upper = model(omega_fixed, params + params_std)
+                self.NLL_spline_lower = model(omega_fixed, params - params_std)
+            except TypeError:
+                pass
+            
         # self.estimate = self.maxlike.parameters_mean[0]*self.maxlike.factor
         
         # try:

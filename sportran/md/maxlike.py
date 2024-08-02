@@ -23,6 +23,7 @@ class MaxLikeFilter:
     model           = Function that models the data (for now only spline)
     n_parameters    = Number of parameters to be used for the fit
     n_components    = Number of independent samples the data is generated from.
+    n_currents      = Number of independent flux types.
 
     ** INTERNAL VARIABLES:
 
@@ -34,6 +35,7 @@ class MaxLikeFilter:
                  model=None, 
                  n_parameters=None, 
                  n_components=None, 
+                 n_currents=None, 
                  likelihood=None, 
                  solver=None, 
                  omega_fixed=None):
@@ -46,6 +48,7 @@ class MaxLikeFilter:
         self.model = model
         self.n_parameters = n_parameters
         self.n_components = n_components
+        self.n_currents = n_currents
         self.likelihood = likelihood
         self.solver = solver
         self.omega_fixed = omega_fixed
@@ -83,11 +86,12 @@ class MaxLikeFilter:
         msg = 'MaxLikeFilter:\n'
         return msg
 
-    def maxlike(self, data=None, model=None, n_parameters=None, likelihood=None, solver=None, mask=None, n_components=None, guess_runave_window=50, omega_fixed=None, write_log=True):
+    def maxlike(self, data=None, model=None, n_parameters=None, likelihood=None, solver=None, mask=None, n_components=None, n_currents=None, guess_runave_window=50, omega_fixed=None, write_log=True):
         """
         Perform the maximum-likelihood estimation.
         """
         # Update instance variables if provided
+       
         if data is not None:
             self.data = data
             self.omega = np.arange(data.shape[-1])
@@ -101,6 +105,8 @@ class MaxLikeFilter:
             self.solver = solver
         if n_components is not None:
             self.n_components = n_components
+        if n_currents is not None:
+            self.n_currents= n_currents
         if omega_fixed is not None:
             self.omega_fixed = omega_fixed
 
@@ -118,13 +124,13 @@ class MaxLikeFilter:
         if mask is not None:
             self.data = self.data[mask]
 
-        nu = self.data.shape[0]
+        nu = self.n_currents
         
         # Check data shape
         assert len(self.data.shape) == 1 or len(self.data.shape) == 3, "`data` should be a 1d array (diagonal or off-diagonal estimates) or a 3d array (Wishart matrix estimate)"
         if len(self.data.shape) == 3:
             assert self.likelihood == 'wishart', f"Misshaped `data` for {self.likelihood} likelihood."
-            assert self.data.shape[0] == self.data.shape[1], "`data` for a Wishart estimate must be a (n,n,N) array."
+            assert self.data.shape[0] == self.data.shape[1], f"data.shape={self.data.shape}. `data` for a Wishart estimate must be a (n,n,N) array."
         else:
             assert self.likelihood != 'wishart', f"Misshaped `data` for {self.likelihood} likelihood."
 
@@ -133,20 +139,27 @@ class MaxLikeFilter:
         self.omega = omega
 
         # Spline nodes
-        if self.omega_fixed is None:
-            if write_log:
-                log.write_log("Spline nodes are equispaced from 0 to the Nyquist frequency.")
-            args = np.int32(np.linspace(0, self.data.shape[-1] - 1, self.n_parameters, endpoint=True))
-            self.omega_fixed = omega[args]
+        if omega_fixed is None:
+            try:
+                assert self.omega_fixed.shape[0] == n_parameters
+            except:
+                if write_log:
+                    log.write_log("Spline nodes are equispaced from 0 to the Nyquist frequency.")
+                args = np.int32(np.linspace(0, self.data.shape[-1] - 1, self.n_parameters, endpoint=True))
+                self.omega_fixed = omega[args]
+        else:
+            self.omega_fixed = omega_fixed
+        assert self.omega_fixed.shape[0] == n_parameters
 
         # Spline model
         assert self.model is not None, "Model must be provided"
 
         # Initial guess for optimization
-        guess_data = self.guess_data(self.data, omega, self.omega_fixed, ell, nu, window=guess_runave_window)
+        guess_data = self.guess_data(self.data, omega, self.omega_fixed, ell, nu, window=guess_runave_window, loglike=self.likelihood)
         self.data = np.moveaxis(self.data, self.data.shape.index(max(self.data.shape)), 0)
 
         # Minimize the negative log-likelihood
+        self._guess_data = guess_data
         res = minimize(fun = self.log_like,
                        x0 = guess_data,
                        args = (self.model, omega, self.omega_fixed, self.data, nu, ell),
@@ -185,6 +198,7 @@ class MaxLikeFilter:
             guess_data = np.array([runavefilter(c, window) for c in data.reshape(-1, shape[-1])]).reshape(shape)
         
         guess_data = np.array([guess_data[..., j] for j in [np.argmin(np.abs(omega - omega_fixed[i])) for i in range(len(omega_fixed))]])
+        print(guess_data.shape)
 
         if loglike == 'wishart':
             guess_data = np.array([cholesky(g, lower=False) for g in guess_data]) / np.sqrt(ell)
@@ -231,11 +245,11 @@ class MaxLikeFilter:
         # print(-np.sum(log_pdf))
         return -np.sum(log_pdf)
 
-    def log_likelihood_offdiag(self, w, omega, omega_fixed, data_, nu, ell):
+    def log_likelihood_offdiag(self, w, model, omega, omega_fixed, data_, nu, ell):
         """
-        Logarithm of the Variance-Gamma probability density function.
+        Negative of the logarithm of the Variance-Gamma probability density function.
         """
-        spline = self.model(omega_fixed, w)
+        spline = model(omega_fixed, w)
         rho = np.clip(spline(omega), -0.98, 0.98)
         _alpha = 1 / (1 - rho**2)
         _beta = rho / (1 - rho**2)
@@ -243,23 +257,26 @@ class MaxLikeFilter:
         _gamma2 = _alpha**2 - _beta**2
         _lambda_minus_half = _lambda - 0.5
         
+        # Non sono più sicuro sia sensata questa definizione di z. Non è semplicemtente data_? AH! Forse è la stessa cosa che succede al Chi2, va moltiplicato per il numero di dof. Capire meglio e fare prove.
         z = data_ * ell * nu
         absz = np.abs(z)
         log_pdf = _lambda * np.log(_gamma2) + _lambda_minus_half * np.log(absz) + np.log(sp.kv(_lambda_minus_half, _alpha * absz)) + \
             _beta * z - 0.5 * np.log(np.pi) - np.log(sp.gamma(_lambda)) - _lambda_minus_half * np.log(2 * _alpha)
 
-        return np.sum(log_pdf)
+        return -np.sum(log_pdf)
 
-    def log_likelihood_diag(self, w, omega, omega_fixed, data_, ell):
+    def log_likelihood_diag(self, w, model, omega, omega_fixed, data_, nu, ell):
         """
-        Logarithm of the Chi-squared probability density function.
+        Negative of the logarithm of the Chi-squared probability density function.
         """
-        spline = self.model(omega_fixed, w)
-        rho = np.clip(spline(omega), 1e-6, 1e6)
-        
-        z = data_ * ell / rho
-        absz = np.abs(z)
-        log_pdf = (ell / 2 - 1) * np.log(absz) - absz / 2 - np.log(rho)
+        spline = model(omega_fixed, w)
+        spectrum = 2*spline(omega)
+        # spectrum = np.clip(spline(omega), 1e-60, 1e60)/2
+        dof = 2*(ell-nu+1)
+        z = np.abs(dof * data_ / spectrum) # This is chi-squared distributed
+    
+        logz = np.log(z)
+        log_pdf = (2-dof)*logz + z
 
         return np.sum(log_pdf)
 
@@ -291,17 +308,17 @@ class MaxLikeFilter:
         else:
             return -np.inf
 
-    def log_posterior_offdiag(self, w, omega, omega_fixed, data, nu=6, ell=3):
+    def log_posterior_offdiag(self, w, model, omega, omega_fixed, data, nu=6, ell=3):
         """
         Log-posterior for off-diagonal elements.
         """
-        return self.log_prior_offdiag(w) + self.log_likelihood_offdiag(w, omega, omega_fixed, data, nu, ell)
+        return self.log_prior_offdiag(w) + self.log_likelihood_offdiag(w, omega, model, omega_fixed, data, nu, ell)
 
-    def log_posterior_diag(self, w, omega, omega_fixed, data, ell=3):
+    def log_posterior_diag(self, w, model, omega, omega_fixed, data, nu=6, ell=3):
         """
         Log-posterior for diagonal elements.
         """
-        return self.log_prior_diag(w) + self.log_likelihood_diag(w, omega, omega_fixed, data, ell)
+        return self.log_prior_diag(w) + self.log_likelihood_diag(w, model, omega, omega_fixed, data, nu, ell)
 
     def log_posterior_normal(self, w, omega, omega_fixed, data, nu=6, ell=3):
         """
