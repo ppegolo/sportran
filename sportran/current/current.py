@@ -405,14 +405,15 @@ class Current(MDSample, abc.ABC):
                          likelihood = 'wishart',
                          solver = 'BFGS',
                          guess_runave_window = 50,
+                         minimize_kwargs={}
                          ):
         
         if likelihood.lower() == 'wishart':
-            data = self.cospectrum.real # TODO figure out this business of real vs abs value
+            data = self.cospectrum.real * self.N_CURRENTS
         elif likelihood.lower() == 'chisquare' or likelihood.lower() == 'chisquared':
-            data = self.psd
+            data = self.psd * self.N_CURRENTS
         elif likelihood == 'variancegamma' or likelihood == 'variance-gamma':
-            data = self.cospectrum.real[0,1]
+            data = self.cospectrum.real[0,1] # * self.N_CURRENTS
         else:
             raise ValueError("Likelihood must be Wishart, Chi-square, or Variance-Gamma.")
 
@@ -429,7 +430,8 @@ class Current(MDSample, abc.ABC):
             # Minimize the negative log-likelihood with a fixed number of parameters
             self.maxlike.maxlike(mask = mask,
                                  guess_runave_window = guess_runave_window, 
-                                 n_parameters = n_parameters)
+                                 n_parameters = n_parameters,
+                                 minimize_kwargs=minimize_kwargs)
         
         elif isinstance(n_parameters, list) or isinstance(n_parameters, np.ndarray):
             do_AIC = True
@@ -452,7 +454,8 @@ class Current(MDSample, abc.ABC):
                                      guess_runave_window = guess_runave_window, 
                                      n_parameters = int(n_par),
                                      omega_fixed = None,
-                                     write_log = False)
+                                     write_log = False,
+                                     minimize_kwargs=minimize_kwargs)
                     
                 _aic.append(self.maxlike.log_likelihood_value - n_par)
                 _filters.append(deepcopy(self.maxlike))
@@ -466,21 +469,41 @@ class Current(MDSample, abc.ABC):
         params = self.maxlike.parameters_mean
         params_std = self.maxlike.parameters_std
 
+        om = self.maxlike.omega
         if likelihood == 'wishart':
-            self.NLL_spline = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params)(x)))
+            # nw = params.shape[0]//2
+            # re_NLL_spline = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params[:nw])(x)))
+            # im_NLL_spline = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params[nw:])(x)))
+            # self.NLL_mean = re_NLL_spline(om) + 1j*im_NLL_spline(om)
+            # _spl = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params)(x)))
+            # self.NLL_mean = _spl(om)
+            from sportran.md.maxlike import scale_matrix
+            self.NLL_mean = scale_matrix(model, params, om, omega_fixed, self.N_CURRENTS) * self.N_EQUIV_COMPONENTS / self.N_CURRENTS
             try:
-                self.NLL_spline_upper = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params + params_std)(x)))
-                self.NLL_spline_lower = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params - params_std)(x)))
+                # _NLL_spline_upper = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params + params_std)(x)))
+                # _NLL_spline_lower = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params - params_std)(x)))
+                # re_NLL_spline_upper = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params[:nw] + params_std[:nw])(x)))
+                # re_NLL_spline_lower = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params[:nw] - params_std[:nw])(x)))
+                # im_NLL_spline_upper = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params[nw:] + params_std[nw:])(x)))
+                # im_NLL_spline_lower = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params[nw:] - params_std[nw:])(x)))
+                # self.NLL_upper = re_NLL_spline_upper(om) + 1j*im_NLL_spline_upper(om)
+                # self.NLL_lower = re_NLL_spline_lower(om) + 1j*im_NLL_spline_lower(om)
+                self.NLL_upper = scale_matrix(model, params+params_std, om, omega_fixed, self.N_CURRENTS) * self.N_EQUIV_COMPONENTS / self.N_CURRENTS
+                self.NLL_lower = scale_matrix(model, params-params_std, om, omega_fixed, self.N_CURRENTS) * self.N_EQUIV_COMPONENTS / self.N_CURRENTS
             except TypeError:
                 pass
         else:
-            self.NLL_spline = model(omega_fixed, params)
+            _NLL_spline = model(omega_fixed, params)
+            fact = np.sqrt(self.N_EQUIV_COMPONENTS) / self.N_CURRENTS / np.sqrt(2)
+            self.NLL_mean = _NLL_spline(om) * fact
             try:
-                self.NLL_spline_upper = model(omega_fixed, params + params_std)
-                self.NLL_spline_lower = model(omega_fixed, params - params_std)
+                _NLL_spline_upper = model(omega_fixed, params + params_std)
+                _NLL_spline_lower = model(omega_fixed, params - params_std)
+                self.NLL_upper = _NLL_spline_upper(om) * fact
+                self.NLL_lower = _NLL_spline_lower(om) * fact
             except TypeError:
                 pass
-            
+
         # self.estimate = self.maxlike.parameters_mean[0]*self.maxlike.factor
         
         # try:

@@ -86,7 +86,19 @@ class MaxLikeFilter:
         msg = 'MaxLikeFilter:\n'
         return msg
 
-    def maxlike(self, data=None, model=None, n_parameters=None, likelihood=None, solver=None, mask=None, n_components=None, n_currents=None, guess_runave_window=50, omega_fixed=None, write_log=True):
+    def maxlike(self, 
+                data=None, 
+                model=None, 
+                n_parameters=None, 
+                likelihood=None, 
+                solver=None, 
+                mask=None, 
+                n_components=None, 
+                n_currents=None, 
+                guess_runave_window=50, 
+                omega_fixed=None, 
+                write_log=True,
+                minimize_kwargs=None):
         """
         Perform the maximum-likelihood estimation.
         """
@@ -160,10 +172,13 @@ class MaxLikeFilter:
 
         # Minimize the negative log-likelihood
         self._guess_data = guess_data
+        guess_par = guess_data #normalize_parameters(guess_data, guess_data)
+        # print(guess_data - denormalize_parameters(guess_par, guess_data))
         res = minimize(fun = self.log_like,
-                       x0 = guess_data,
+                       x0 = guess_par,
                        args = (self.model, omega, self.omega_fixed, self.data, nu, ell),
-                       method = self.solver)
+                       method = self.solver,
+                       **minimize_kwargs)
         
         # Covariance of the parameters
         try:
@@ -176,6 +191,7 @@ class MaxLikeFilter:
             cov = None
         
         self.parameters_mean = res.x
+        # self.parameters_mean = denormalize_parameters(res.x, self._guess_data)
         if cov is not None:
             self.parameters_std = np.sqrt(cov.diagonal())
 
@@ -199,18 +215,34 @@ class MaxLikeFilter:
         
         guess_data = np.array([guess_data[..., j] for j in [np.argmin(np.abs(omega - omega_fixed[i])) for i in range(len(omega_fixed))]])
         print(guess_data.shape)
-
         if loglike == 'wishart':
-            guess_data = np.array([cholesky(g, lower=False) for g in guess_data]) / np.sqrt(ell)
-
+            guess_data = np.array([cholesky(g, lower=False) for g in guess_data]) #/ np.sqrt(ell)
             upper_triangle_indices = np.triu_indices(nu)
-            guess_data = guess_data[:, upper_triangle_indices[0], upper_triangle_indices[1]].T.reshape(-1)
 
-            # guess_data = np.array([guess_data[:, 0, 0], guess_data[:, 0, 1], guess_data[:, 1, 1]]).reshape(-1)
-        
+            nw = omega_fixed.shape[0]
+            ie = 0
+            if guess_data.dtype == np.complex128:
+                guess_params = np.zeros((nw, nu**2))
+                for i, j in zip(*upper_triangle_indices):
+                    if i == j:
+                        guess_params[:, ie] = guess_data[:, i, j].real
+                        ie += 1
+                    else:
+                        guess_params[:, ie] = guess_data[:, i, j].real
+                        ie += 1
+                        guess_params[:, ie] = guess_data[:, i, j].imag
+                        ie += 1
+                guess_data = guess_params.flatten()
+            else:
+                guess_params = np.zeros((nw, nu*(nu+1)//2))
+                for i, j in zip(*upper_triangle_indices):
+                    guess_params[:, ie] = guess_data[:, i, j]
+                    ie += 1
+                guess_data = guess_params.flatten()
+          
         return guess_data
-    
-    def log_likelihood_wishart(self, w, model, omega, omega_fixed, data_, nu, ell, eps = 1e-9):
+
+    def log_likelihood_wishart(self, w, model, omega, omega_fixed, data_, nu, ell, eps = 1e-3):
         """
         Logarithm of the Wishart probability density function.
         """
@@ -218,19 +250,14 @@ class MaxLikeFilter:
         p = nu
 
         # Compute scale matrix from the model (symmetrize to ensure positive definiteness)
-        spline = model(omega_fixed, w)
-        V = spline(omega)
-        V = opt_einsum.contract('wba,wbc->wac', V, V) / n
-
+        V = scale_matrix(model, w, omega, omega_fixed, p)
         X = data_
+        
         if n < p:
-            # Singular Wishart
-            multig = multigammaln(0.5 * n, n)
-            S = np.linalg.svd(X, hermitian = True, compute_uv = False)
+            S = np.linalg.svd(X, hermitian=True, compute_uv=False)
             detX = np.array([np.prod(s[abs(s) > eps]) for s in S])
 
         else:
-            multig = multigammaln(0.5 * n, p)
             detX = np.linalg.det(X)
 
         invV = np.linalg.inv(V)
@@ -238,17 +265,60 @@ class MaxLikeFilter:
 
         trinvV_X = opt_einsum.contract('wab,wba->w', invV, X)
         
-        # log_pdf = - (0.5 * (-n * p * LOG2 - n * np.log(detV) + (n - p - 1) * np.log(detX) - trinvV_X) - multig)
         coeff_detV = -n
         coeff_detX = n-p-1
-        log_pdf = coeff_detV * np.log(detV) + coeff_detX * np.log(detX) - trinvV_X
-        # print(-np.sum(log_pdf))
+        
+        log_pdf = coeff_detV * np.log(detV + eps) + coeff_detX * np.log(detX + eps) - trinvV_X        
+        tot = -np.sum(log_pdf)
+        return tot
+
+    def log_likelihood_complex_wishart(self, w, model, omega, omega_fixed, data_, nu, ell, eps = 1e-9):
+        """
+        Logarithm of the Complex Wishart probability density function.
+        """
+        n = ell
+        p = nu
+
+        # Compute scale matrix from the model (symmetrize to ensure positive definiteness)
+        S = scale_matrix(model, w, omega, omega_fixed, p)
+        # nw = w.shape[0]//2
+        # real_part = model(omega_fixed, w[:nw])
+        # imag_part = model(omega_fixed, w[nw:])
+
+        # # Lower Cholesky factor of S
+        # L = (real_part(omega) + 1j*imag_part(omega))
+        # S = opt_einsum.contract('wba,wbc->wac', L.conj(), L)
+
+        # The distribution refers to the sample covariance matrix of the (complex) multinormal vectors, not their average
+        X = data_
+
+        if n < p:
+            raise ValueError('n must be greater or equal than p')
+            # Singular Wishart
+            multig = multigammaln(0.5 * n, n)
+            S = np.linalg.svd(X, hermitian = True, compute_uv = False)
+            detX = np.array([np.prod(s[abs(s) > eps]) for s in S])
+        else:
+            # multig = multigammaln(0.5 * n, p)
+            logdetX = np.log(np.abs(np.linalg.det(X).real))
+
+        invS = np.linalg.inv(S)
+        logdetS = np.log(np.abs(np.linalg.det(S).real))
+
+        trinvS_X = opt_einsum.contract('wab,wba->w', invS, X).real
+        
+        log_pdf = (n-p)*logdetX - trinvS_X - n*logdetS
+        # coeff_detV = -n
+        # coeff_detX = n-p-1
+        # log_pdf = coeff_detV * np.log(detV) + coeff_detX * np.log(detX) - trinvV_X
+        # # print(-np.sum(log_pdf))
         return -np.sum(log_pdf)
 
     def log_likelihood_offdiag(self, w, model, omega, omega_fixed, data_, nu, ell):
         """
         Negative of the logarithm of the Variance-Gamma probability density function.
         """
+        print(w)
         spline = model(omega_fixed, w)
         rho = np.clip(spline(omega), -0.98, 0.98)
         _alpha = 1 / (1 - rho**2)
@@ -257,12 +327,18 @@ class MaxLikeFilter:
         _gamma2 = _alpha**2 - _beta**2
         _lambda_minus_half = _lambda - 0.5
         
-        # Non sono più sicuro sia sensata questa definizione di z. Non è semplicemtente data_? AH! Forse è la stessa cosa che succede al Chi2, va moltiplicato per il numero di dof. Capire meglio e fare prove.
-        z = data_ * ell * nu
+        # Non sono più sicuro sia sensata questa definizione di z. 
+        # Non è semplicemtente data_? AH! Forse è la stessa cosa che succede al Chi2, va moltiplicato per il numero di dof. Capire meglio e fare prove.
+        z = data_ * nu * ell
         absz = np.abs(z)
-        log_pdf = _lambda * np.log(_gamma2) + _lambda_minus_half * np.log(absz) + np.log(sp.kv(_lambda_minus_half, _alpha * absz)) + \
-            _beta * z - 0.5 * np.log(np.pi) - np.log(sp.gamma(_lambda)) - _lambda_minus_half * np.log(2 * _alpha)
-
+        term1 = _lambda * np.log(_gamma2)
+        term2 = _lambda_minus_half * np.log(absz)
+        term3 = np.log(sp.kv(_lambda_minus_half, _alpha * absz))
+        term4 = _beta * z 
+        term5 = - _lambda_minus_half * np.log(2 * _alpha)
+        # log_pdf = _lambda * np.log(_gamma2) + _lambda_minus_half * np.log(absz) + np.log(sp.kv(_lambda_minus_half, _alpha * absz)) + \
+            # _beta * z - _lambda_minus_half * np.log(2 * _alpha) # + const
+        log_pdf = term1 + term2 + term3 + term4 + term5
         return -np.sum(log_pdf)
 
     def log_likelihood_diag(self, w, model, omega, omega_fixed, data_, nu, ell):
@@ -327,6 +403,38 @@ class MaxLikeFilter:
         return self.log_prior_offdiag(w) + self.log_likelihood_normal(w, omega, omega_fixed, data, nu, ell)
 
 
+def scale_matrix(model, w, omega, omega_fixed, n):
+    '''
+    '''
+    elements = model(omega_fixed, w)(omega)
+    ie = 0
+    if elements.dtype == np.complex128:
+        L = np.zeros((n, n, omega.shape[0]), dtype = np.complex128)
+        for i, j in zip(*np.triu_indices(n)):
+            if i == j:
+                L[i, j] = elements[:, ie]
+                ie += 1
+            else:
+                L[i, j] = elements[:, ie] + 1j*elements[:, ie+1]
+                ie += 2
+
+        S = np.einsum('jiw,jkw->wik', L.conj(), L)
+    else:
+        L = np.zeros((n, n, omega.shape[0]))
+        for i, j in zip(*np.triu_indices(n)):
+            L[i, j] = elements[:, ie]
+            ie += 1
+            
+        S = np.einsum('jiw,jkw->wik', L, L)
+    return S
+
+def normalize_parameters(p, guess):
+    mini, maxi = 1.2*np.abs(guess), -1.2*np.abs(guess)
+    return (p-mini) / (maxi-mini)
+
+def denormalize_parameters(p, guess):
+    mini, maxi = 1.2*np.abs(guess), -1.2*np.abs(guess)
+    return p * (maxi-mini) + mini
 
 # # Methods to perform a bayesian estimation of the transport coefficients
 
