@@ -24,6 +24,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+metadata.json
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -46,12 +47,14 @@ coverage.xml
 *.cover
 .hypothesis/
 
+# Visual Studio Code
+.vscode/
+
 # Translations
 *.mo
 *.pot
 
 # Django stuff:
-*.log
 local_settings.py
 
 # Flask stuff:
