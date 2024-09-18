@@ -333,12 +333,24 @@ class MaxLikeFilter:
 
         trinvV_X = opt_einsum.contract("wab,wba->w", invV, X)
 
-        coeff_detV = -n
-        coeff_detX = n - p - 1
+        # coeff_detV = -n
+        # coeff_detX = n - p - 1
+        logG = multigammaln(0.5 * n, p)
 
         log_pdf = (
-            coeff_detV * np.log(detV + eps) + coeff_detX * np.log(detX + eps) - trinvV_X
+            0.5
+            * (
+                (n - p - 1) * np.log(detX)
+                - trinvV_X
+                - n * np.log(detV)
+                - n * p * np.log(2)
+            )
+            - logG
         )
+
+        # log_pdf = (
+        #     0.5*(coeff_detV*np.log(detV + eps) + coeff_detX*np.log(detX + eps) - trinvV_X) - logG
+        # )
         tot = -np.sum(log_pdf)
         return tot
 
@@ -379,9 +391,10 @@ class MaxLikeFilter:
 
         trinvS_X = opt_einsum.contract("wab,wba->w", invS, X).real
 
-        log_pdf = (n - p) * logdetX - trinvS_X - n * logdetS
         # coeff_detV = -n
         # coeff_detX = n-p-1
+        log_pdf = (n - p) * logdetX - trinvS_X - n * logdetS
+
         # log_pdf = coeff_detV * np.log(detV) + coeff_detX * np.log(detX) - trinvV_X
         # # print(-np.sum(log_pdf))
         return -np.sum(log_pdf)
