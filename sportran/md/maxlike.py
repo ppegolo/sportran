@@ -353,6 +353,7 @@ class MaxLikeFilter:
         # )
 
         # return the negative LL because of `minimize`
+        assert np.sum(log_pdf) > 0
         tot = -np.mean(log_pdf)
         return tot
 
