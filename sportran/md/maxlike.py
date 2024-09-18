@@ -351,7 +351,9 @@ class MaxLikeFilter:
         # log_pdf = (
         #     0.5*(coeff_detV*np.log(detV + eps) + coeff_detX*np.log(detX + eps) - trinvV_X) - logG
         # )
-        tot = -np.sum(log_pdf)
+
+        # return the negative LL because of `minimize`
+        tot = -np.mean(log_pdf)
         return tot
 
     def log_likelihood_complex_wishart(
