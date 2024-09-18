@@ -510,7 +510,8 @@ class Current(MDSample, abc.ABC):
             )
 
         # Define MaxLikeFilter object
-        self.maxlike = MaxLikeFilter(
+        _maxlike = MaxLikeFilter(
+        #self.maxlike = MaxLikeFilter(
             data=data,
             model=model,
             n_components=self.N_EQUIV_COMPONENTS,
@@ -522,7 +523,8 @@ class Current(MDSample, abc.ABC):
         if isinstance(n_parameters, int):
             do_AIC = False
             # Minimize the negative log-likelihood with a fixed number of parameters
-            self.maxlike.maxlike(
+            #self.maxlike.maxlike(
+            _maxlike.maxlike(
                 mask=mask,
                 guess_runave_window=guess_runave_window,
                 n_parameters=n_parameters,
@@ -553,7 +555,8 @@ class Current(MDSample, abc.ABC):
             _aic_max = -np.inf
             while n_par <= n_parameters[-1] and not convergence_is_reached:
                 log.write_log(f"n_parameters = {n_par}")
-                self.maxlike.maxlike(
+                #self.maxlike.maxlike(
+                _maxlike.maxlike(
                     data=data,  # FIXME: needs to be passed because maxlike.data has permuted dimensions
                     mask=mask,
                     guess_runave_window=guess_runave_window,
@@ -563,21 +566,24 @@ class Current(MDSample, abc.ABC):
                     minimize_kwargs=minimize_kwargs,
                 )
 
-                _new_aic = self.maxlike.log_likelihood_value - n_par
+                #_new_aic = self.maxlike.log_likelihood_value - n_par
+                _new_aic = _maxlike.log_likelihood_value - n_par
                 _aic.append(_new_aic)
                 if np.max(_aic) > _aic_max:
                     _aic_max = np.max(_aic)
+                    self.optimal_nparameters = n_par
+                    self.maxlike = deepcopy(_maxlike)
                     _steps_since_last_aic_update = 0
                 else:
                     _steps_since_last_aic_update += 1
                 if _steps_since_last_aic_update > 5:
                     convergence_is_reached = True
 
-                _filters.append(deepcopy(self.maxlike))
+                #_filters.append(deepcopy(self.maxlike))
                 n_par += 1
-                print("Steps since last aic update:", _steps_since_last_aic_update)
-            self.optimal_nparameters = n_parameters[np.argmax(_aic)]
-            self.maxlike = _filters[np.argmax(_aic)]
+                print("aic:", _new_aic, "; Steps since last aic update:", _steps_since_last_aic_update,flush=True)
+            #self.optimal_nparameters = n_parameters[np.argmax(_aic)]
+            #self.maxlike = _filters[np.argmax(_aic)]
             self.aic_values = np.array(_aic)
             del _filters
             del _aic
