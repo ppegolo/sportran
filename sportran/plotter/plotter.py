@@ -16,7 +16,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 # list of colors
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-
+iter_colors = iter(colors)
 ################################################################################
 
 
@@ -144,8 +144,8 @@ def plot_cospectrum_component(current, idx1, idx2, *, axis=None, FIGSIZE=None, f
     """
     if axis is None:
         figure, axis = plt.subplots(1, figsize=FIGSIZE)
-    color1 = next(colors)
-    color2 = next(colors)
+    color1 = next(iter_colors)
+    color2 = next(iter_colors)
     axis.plot(current.freqs_THz, np.real(current.fcospectrum[idx1][idx2]) * current.KAPPA_SCALE * 0.5, c=color1,)
     axis.plot(current.freqs_THz, np.imag(current.fcospectrum[idx1][idx2]) * current.KAPPA_SCALE * 0.5, c=color2,)
 
@@ -192,7 +192,7 @@ def plot_ck(current, *, axis=None, label=None, FIGSIZE=None):
 
     if axis is None:
         figure, axis = plt.subplots(1, figsize=FIGSIZE)
-    color = next(colors)
+    color = next(iter_colors)
     axis.plot(current.cepf.logpsdK, 'o-', c=color, label=label)
 
     axis.plot(current.cepf.logpsdK + current.cepf.logpsdK_THEORY_std, '--', c=color)
@@ -216,7 +216,7 @@ def plot_L0_Pstar(current, *, axis=None, label=None, FIGSIZE=None):
     """
     if axis is None:
         figure, axis = plt.subplots(1, figsize=FIGSIZE)
-    color = next(colors)   # quick fix to avoid error with mlp>=3.8
+    color = next(iter_colors)   # quick fix to avoid error with mlp>=3.8
     axis.plot(np.arange(current.NFREQS) + 1, current.cepf.logtau, '.-', c=color, label=label)
     axis.plot(np.arange(current.NFREQS) + 1, current.cepf.logtau + current.cepf.logtau_THEORY_std, '--', c=color,)
     axis.plot(np.arange(current.NFREQS) + 1, current.cepf.logtau - current.cepf.logtau_THEORY_std, '--', c=color,)
@@ -246,7 +246,7 @@ def plot_kappa_Pstar(current, *, axis=None, label=None, FIGSIZE=None, pstar_max=
     """
     if axis is None:
         figure, axis = plt.subplots(1, figsize=FIGSIZE)
-    color = next(colors)
+    color = next(iter_colors)
     axis.fill_between(
         np.arange(current.NFREQS) + 1, (current.cepf.tau - current.cepf.tau_THEORY_std) * current.KAPPA_SCALE * 0.5,
         (current.cepf.tau + current.cepf.tau_THEORY_std) * current.KAPPA_SCALE * 0.5, alpha=0.3, color=color,
