@@ -487,6 +487,8 @@ class Current(MDSample, abc.ABC):
         with open("bayesian_analysis_{}".format(n_parameters), "w+") as g:
             g.write("{}\t{}\n".format(self.offdiag, self.offdiag_std))
 
+    ####################################################################################
+    # MAXLIKE methods
     def maxlike_estimate(
         self,
         model,
@@ -495,23 +497,18 @@ class Current(MDSample, abc.ABC):
         likelihood="wishart",
         solver="BFGS",
         guess_runave_window=50,
-        minimize_kwargs={},
+        minimize_kwargs=None,
     ):
+        """
+        Perform maximum likelihood estimation and optionally select the optimal number of parameters using AIC.
+        """
+        minimize_kwargs = minimize_kwargs or {}
 
-        if likelihood.lower() == "wishart":
-            data = self.cospectrum.real * self.N_CURRENTS
-        elif likelihood.lower() == "chisquare" or likelihood.lower() == "chisquared":
-            data = self.psd * self.N_CURRENTS
-        elif likelihood == "variancegamma" or likelihood == "variance-gamma":
-            data = self.cospectrum.real[0, 1]  # * self.N_CURRENTS
-        else:
-            raise ValueError(
-                "Likelihood must be Wishart, Chi-square, or Variance-Gamma."
-            )
+        # Get the appropriate data based on likelihood type
+        data = self._get_data_by_likelihood(likelihood)
 
         # Define MaxLikeFilter object
         _maxlike = MaxLikeFilter(
-            # self.maxlike = MaxLikeFilter(
             data=data,
             model=model,
             n_components=self.N_EQUIV_COMPONENTS,
@@ -521,125 +518,171 @@ class Current(MDSample, abc.ABC):
         )
 
         if isinstance(n_parameters, int):
-            do_AIC = False
-            # Minimize the negative log-likelihood with a fixed number of parameters
-            # self.maxlike.maxlike(
-            _maxlike.maxlike(
-                mask=mask,
-                guess_runave_window=guess_runave_window,
-                n_parameters=n_parameters,
-                minimize_kwargs=minimize_kwargs,
+            self._run_maxlike_fixed_parameters(
+                _maxlike, n_parameters, mask, guess_runave_window, minimize_kwargs
+            )
+        else:
+            n_parameters = self._prepare_n_parameters(n_parameters)
+            self._run_maxlike_aic(
+                _maxlike,
+                n_parameters,
+                mask,
+                guess_runave_window,
+                minimize_kwargs,
+                data=data,  # TODO find a simple way to avoid this
             )
 
-        elif isinstance(n_parameters, list) or isinstance(n_parameters, np.ndarray):
-            do_AIC = True
+        # Extract results and scale the matrices
+        self._extract_and_scale_results(_maxlike, model, likelihood)
+
+    def _get_data_by_likelihood(self, likelihood):
+        """
+        Get the data to be used for the likelihood estimation based on the provided likelihood type.
+        """
+        likelihood = likelihood.lower()
+        if likelihood == "wishart":
+            return self.cospectrum.real * self.N_CURRENTS
+        elif likelihood in ["chisquare", "chisquared"]:
+            return self.psd * self.N_CURRENTS
+        elif likelihood in ["variancegamma", "variance-gamma"]:
+            return self.cospectrum.real[0, 1]  # * self.N_CURRENTS
+        else:
+            raise ValueError(
+                "Likelihood must be Wishart, Chi-square, or Variance-Gamma."
+            )
+
+    def _run_maxlike_fixed_parameters(
+        self, maxlike_filter, n_parameters, mask, guess_runave_window, minimize_kwargs
+    ):
+        """
+        Run maximum likelihood estimation with a fixed number of parameters.
+        """
+        maxlike_filter.maxlike(
+            mask=mask,
+            guess_runave_window=guess_runave_window,
+            n_parameters=n_parameters,
+            minimize_kwargs=minimize_kwargs,
+        )
+        self.maxlike = maxlike_filter
+
+    def _prepare_n_parameters(self, n_parameters):
+        """
+        Prepare the number of parameters array based on input.
+        """
+        if isinstance(n_parameters, (list, np.ndarray)):
             assert np.issubdtype(
                 np.asarray(n_parameters).dtype, np.integer
             ), "`n_parameter` must be an integer array-like"
             log.write_log(
                 f"Optimal number of parameters between {np.min(n_parameters)} and {np.max(n_parameters)} chosen by AIC"
             )
-
         elif isinstance(n_parameters, str) and n_parameters.lower() == "aic":
-            do_AIC = True
             n_parameters = np.arange(3, 40)
             log.write_log("Optimal number of parameters between 3 and 40 chosen by AIC")
+        return n_parameters
 
-        if do_AIC:
-            # Minimize the negative log-likelihood on a range of parameters and choose the best one with the AIC
-            _aic = []
-            _filters = []
-            # for n_par in n_parameters:
-            n_par = n_parameters[0]
-            convergence_is_reached = False
-            _aic_max = -np.inf
-            while n_par <= n_parameters[-1] and not convergence_is_reached:
-                log.write_log(f"n_parameters = {n_par}")
-                # self.maxlike.maxlike(
-                _maxlike.maxlike(
-                    data=data,  # FIXME: needs to be passed because maxlike.data has permuted dimensions
-                    mask=mask,
-                    guess_runave_window=guess_runave_window,
-                    n_parameters=int(n_par),
-                    omega_fixed=None,
-                    write_log=False,
-                    minimize_kwargs=minimize_kwargs,
-                )
+    def _run_maxlike_aic(
+        self,
+        maxlike_filter,
+        n_parameters,
+        mask,
+        guess_runave_window,
+        minimize_kwargs,
+        data=None,
+    ):
+        """
+        Run maximum likelihood estimation over a range of parameters and choose the best one with AIC.
+        """
+        _aic = []
+        _aic_max = -np.inf
+        _steps_since_last_aic_update = 0
+        convergence_is_reached = False
 
-                # _new_aic = self.maxlike.log_likelihood_value - n_par
-                _new_aic = _maxlike.log_likelihood_value - n_par
-                _aic.append(_new_aic)
-                if np.max(_aic) > _aic_max:
-                    _aic_max = np.max(_aic)
-                    self.optimal_nparameters = n_par
-                    self.maxlike = deepcopy(_maxlike)
-                    _steps_since_last_aic_update = 0
-                else:
-                    _steps_since_last_aic_update += 1
-                if _steps_since_last_aic_update > 5:
-                    convergence_is_reached = True
+        for n_par in n_parameters:
+            if convergence_is_reached:
+                break
+            log.write_log(f"n_parameters = {n_par}")
+            maxlike_filter.maxlike(
+                data=data,
+                omega_fixed=None,
+                mask=mask,
+                guess_runave_window=guess_runave_window,
+                n_parameters=int(n_par),
+                minimize_kwargs=minimize_kwargs,
+            )
 
-                # _filters.append(deepcopy(self.maxlike))
-                n_par += 1
-                print(
-                    "aic:",
-                    _new_aic,
-                    "; Steps since last aic update:",
-                    _steps_since_last_aic_update,
-                    flush=True,
-                )
-            # self.optimal_nparameters = n_parameters[np.argmax(_aic)]
-            # self.maxlike = _filters[np.argmax(_aic)]
-            self.aic_values = np.array(_aic)
-            del _filters
-            del _aic
-        else:
-            self.maxlike = _maxlike
+            _new_aic = maxlike_filter.log_likelihood_value - n_par
+            _aic.append(_new_aic)
 
-        omega_fixed = self.maxlike.omega_fixed
-        params = self.maxlike.parameters_mean
-        params_std = self.maxlike.parameters_std
+            if _new_aic > _aic_max:
+                _aic_max = _new_aic
+                self.optimal_nparameters = n_par
+                self.maxlike = deepcopy(maxlike_filter)
+                _steps_since_last_aic_update = 0
+            else:
+                _steps_since_last_aic_update += 1
 
-        om = self.maxlike.omega
+            if _steps_since_last_aic_update > 5:
+                convergence_is_reached = True
+
+            print(
+                "aic:",
+                _new_aic,
+                "; Steps since last aic update:",
+                _steps_since_last_aic_update,
+                flush=True,
+            )
+
+        self.aic_values = np.array(_aic)
+
+    def _extract_and_scale_results(self, maxlike_filter, model, likelihood):
+        """
+        Extract results from maxlike_filter and scale the matrices accordingly.
+        """
+        omega_fixed = maxlike_filter.omega_fixed
+        params = maxlike_filter.parameters_mean
+        params_std = maxlike_filter.parameters_std
+        om = maxlike_filter.omega
+
         if likelihood == "wishart":
-            # nw = params.shape[0]//2
-            # re_NLL_spline = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params[:nw])(x)))
-            # im_NLL_spline = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params[nw:])(x)))
-            # self.NLL_mean = re_NLL_spline(om) + 1j*im_NLL_spline(om)
-            # _spl = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params)(x)))
-            # self.NLL_mean = _spl(om)
-            from sportran.md.maxlike import scale_matrix
+            from sportran.md.maxlike import scale_matrix, scale_matrix_std_mc
 
             self.NLL_mean = (
                 scale_matrix(model, params, om, omega_fixed, self.N_CURRENTS)
-                * self.N_EQUIV_COMPONENTS
+                # * self.N_EQUIV_COMPONENTS
                 / self.N_CURRENTS
             )
-            try:
-                # _NLL_spline_upper = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params + params_std)(x)))
-                # _NLL_spline_lower = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params - params_std)(x)))
-                # re_NLL_spline_upper = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params[:nw] + params_std[:nw])(x)))
-                # re_NLL_spline_lower = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params[:nw] - params_std[:nw])(x)))
-                # im_NLL_spline_upper = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params[nw:] + params_std[nw:])(x)))
-                # im_NLL_spline_lower = lambda x: np.einsum('wba,wbc->wac', *(lambda y: (y, y))(model(omega_fixed, params[nw:] - params_std[nw:])(x)))
-                # self.NLL_upper = re_NLL_spline_upper(om) + 1j*im_NLL_spline_upper(om)
-                # self.NLL_lower = re_NLL_spline_lower(om) + 1j*im_NLL_spline_lower(om)
-                self.NLL_upper = (
-                    scale_matrix(
-                        model, params + params_std, om, omega_fixed, self.N_CURRENTS
-                    )
-                    * self.N_EQUIV_COMPONENTS
-                    / self.N_CURRENTS
+
+            self.NLL_std = (
+                scale_matrix_std_mc(
+                    model,
+                    params,
+                    om,
+                    omega_fixed,
+                    self.N_CURRENTS,
+                    maxlike_filter.parameters_cov,
+                    size=1000,
                 )
-                self.NLL_lower = (
-                    scale_matrix(
-                        model, params - params_std, om, omega_fixed, self.N_CURRENTS
-                    )
-                    * self.N_EQUIV_COMPONENTS
-                    / self.N_CURRENTS
-                )
-            except TypeError:
-                pass
+                # * self.N_EQUIV_COMPONENTS
+                / self.N_CURRENTS
+            )
+            # try:
+            #     self.NLL_upper = (
+            #         scale_matrix(
+            #             model, params + params_std, om, omega_fixed, self.N_CURRENTS
+            #         )
+            #         * self.N_EQUIV_COMPONENTS
+            #         / self.N_CURRENTS
+            #     )
+            #     self.NLL_lower = (
+            #         scale_matrix(
+            #             model, params - params_std, om, omega_fixed, self.N_CURRENTS
+            #         )
+            #         * self.N_EQUIV_COMPONENTS
+            #         / self.N_CURRENTS
+            #     )
+            # except TypeError:
+            #     pass
         else:
             _NLL_spline = model(omega_fixed, params)
             fact = np.sqrt(self.N_EQUIV_COMPONENTS) / self.N_CURRENTS / np.sqrt(2)
@@ -652,21 +695,174 @@ class Current(MDSample, abc.ABC):
             except TypeError:
                 pass
 
-        # self.estimate = self.maxlike.parameters_mean[0]*self.maxlike.factor
+    # def maxlike_estimate(
+    #     self,
+    #     model,
+    #     n_parameters="AIC",
+    #     mask=None,
+    #     likelihood="wishart",
+    #     solver="BFGS",
+    #     guess_runave_window=50,
+    #     minimize_kwargs={},
+    # ):
 
-        # try:
-        #     self.estimate_std = self.bayes.parameters_std[0]*self.maxlike.factor
-        # except:
-        #     self.estimate_std = None
+    #     if likelihood.lower() == "wishart":
+    #         data = self.cospectrum.real * self.N_CURRENTS
+    #     elif likelihood.lower() == "chisquare" or likelihood.lower() == "chisquared":
+    #         data = self.psd * self.N_CURRENTS
+    #     elif likelihood == "variancegamma" or likelihood == "variance-gamma":
+    #         data = self.cospectrum.real[0, 1]  # * self.N_CURRENTS
+    #     else:
+    #         raise ValueError(
+    #             "Likelihood must be Wishart, Chi-square, or Variance-Gamma."
+    #         )
 
-        # self.maxlike_log = \
-        #       '-----------------------------------------------------\n' +\
-        #       '  MAXIMUM LIKELIHOOD PARAMETER ESTIMATION\n' +\
-        #       '-----------------------------------------------------\n'
-        # self.maxlike_log += \
-        #       '  L_01   = {:18f} +/- {:10f}\n'.format(self.estimate, self.estimate_std) +\
-        #       '-----------------------------------------------------\n'
-        # log.write_log(self.maxlike_log)
+    #     # Define MaxLikeFilter object
+    #     _maxlike = MaxLikeFilter(
+    #         # self.maxlike = MaxLikeFilter(
+    #         data=data,
+    #         model=model,
+    #         n_components=self.N_EQUIV_COMPONENTS,
+    #         n_currents=self.N_CURRENTS,
+    #         likelihood=likelihood,
+    #         solver=solver,
+    #     )
+
+    #     if isinstance(n_parameters, int):
+    #         do_AIC = False
+    #         # Minimize the negative log-likelihood with a fixed number of parameters
+    #         # self.maxlike.maxlike(
+    #         _maxlike.maxlike(
+    #             mask=mask,
+    #             guess_runave_window=guess_runave_window,
+    #             n_parameters=n_parameters,
+    #             minimize_kwargs=minimize_kwargs,
+    #         )
+
+    #     elif isinstance(n_parameters, list) or isinstance(n_parameters, np.ndarray):
+    #         do_AIC = True
+    #         assert np.issubdtype(
+    #             np.asarray(n_parameters).dtype, np.integer
+    #         ), "`n_parameter` must be an integer array-like"
+    #         log.write_log(
+    #             f"Optimal number of parameters between {np.min(n_parameters)} and {np.max(n_parameters)} chosen by AIC"
+    #         )
+
+    #     elif isinstance(n_parameters, str) and n_parameters.lower() == "aic":
+    #         do_AIC = True
+    #         n_parameters = np.arange(3, 40)
+    #         log.write_log("Optimal number of parameters between 3 and 40 chosen by AIC")
+
+    #     if do_AIC:
+    #         # Minimize the negative log-likelihood on a range of parameters and choose the best one with the AIC
+    #         _aic = []
+    #         _filters = []
+    #         # for n_par in n_parameters:
+    #         n_par = n_parameters[0]
+    #         convergence_is_reached = False
+    #         _aic_max = -np.inf
+    #         while n_par <= n_parameters[-1] and not convergence_is_reached:
+    #             log.write_log(f"n_parameters = {n_par}")
+    #             # self.maxlike.maxlike(
+    #             _maxlike.maxlike(
+    #                 data=data,  # FIXME: needs to be passed because maxlike.data has permuted dimensions
+    #                 mask=mask,
+    #                 guess_runave_window=guess_runave_window,
+    #                 n_parameters=int(n_par),
+    #                 omega_fixed=None,
+    #                 write_log=False,
+    #                 minimize_kwargs=minimize_kwargs,
+    #             )
+
+    #             # _new_aic = self.maxlike.log_likelihood_value - n_par
+    #             _new_aic = _maxlike.log_likelihood_value - n_par
+    #             _aic.append(_new_aic)
+    #             if np.max(_aic) > _aic_max:
+    #                 _aic_max = np.max(_aic)
+    #                 self.optimal_nparameters = n_par
+    #                 self.maxlike = deepcopy(_maxlike)
+    #                 _steps_since_last_aic_update = 0
+    #             else:
+    #                 _steps_since_last_aic_update += 1
+    #             if _steps_since_last_aic_update > 5:
+    #                 convergence_is_reached = True
+
+    #             # _filters.append(deepcopy(self.maxlike))
+    #             n_par += 1
+    #             print(
+    #                 "aic:",
+    #                 _new_aic,
+    #                 "; Steps since last aic update:",
+    #                 _steps_since_last_aic_update,
+    #                 flush=True,
+    #             )
+    #         # self.optimal_nparameters = n_parameters[np.argmax(_aic)]
+    #         # self.maxlike = _filters[np.argmax(_aic)]
+    #         self.aic_values = np.array(_aic)
+    #         del _filters
+    #         del _aic
+    #     else:
+    #         self.maxlike = _maxlike
+
+    #     omega_fixed = self.maxlike.omega_fixed
+    #     params = self.maxlike.parameters_mean
+    #     params_std = self.maxlike.parameters_std
+
+    #     om = self.maxlike.omega
+    #     if likelihood == "wishart":
+    #         from sportran.md.maxlike import scale_matrix
+
+    #         self.NLL_mean = (
+    #             scale_matrix(model, params, om, omega_fixed, self.N_CURRENTS)
+    #             * self.N_EQUIV_COMPONENTS
+    #             / self.N_CURRENTS
+    #         )
+    #         try:
+    #             self.NLL_upper = (
+    #                 scale_matrix(
+    #                     model, params + params_std, om, omega_fixed, self.N_CURRENTS
+    #                 )
+    #                 * self.N_EQUIV_COMPONENTS
+    #                 / self.N_CURRENTS
+    #             )
+    #             self.NLL_lower = (
+    #                 scale_matrix(
+    #                     model, params - params_std, om, omega_fixed, self.N_CURRENTS
+    #                 )
+    #                 * self.N_EQUIV_COMPONENTS
+    #                 / self.N_CURRENTS
+    #             )
+    #         except TypeError:
+    #             pass
+    #     else:
+    #         _NLL_spline = model(omega_fixed, params)
+    #         fact = np.sqrt(self.N_EQUIV_COMPONENTS) / self.N_CURRENTS / np.sqrt(2)
+    #         self.NLL_mean = _NLL_spline(om) * fact
+    #         try:
+    #             _NLL_spline_upper = model(omega_fixed, params + params_std)
+    #             _NLL_spline_lower = model(omega_fixed, params - params_std)
+    #             self.NLL_upper = _NLL_spline_upper(om) * fact
+    #             self.NLL_lower = _NLL_spline_lower(om) * fact
+    #         except TypeError:
+    #             pass
+
+    #     # self.estimate = self.maxlike.parameters_mean[0]*self.maxlike.factor
+
+    #     # try:
+    #     #     self.estimate_std = self.bayes.parameters_std[0]*self.maxlike.factor
+    #     # except:
+    #     #     self.estimate_std = None
+
+    #     # self.maxlike_log = \
+    #     #       '-----------------------------------------------------\n' +\
+    #     #       '  MAXIMUM LIKELIHOOD PARAMETER ESTIMATION\n' +\
+    #     #       '-----------------------------------------------------\n'
+    #     # self.maxlike_log += \
+    #     #       '  L_01   = {:18f} +/- {:10f}\n'.format(self.estimate, self.estimate_std) +\
+    #     #       '-----------------------------------------------------\n'
+    #     # log.write_log(self.maxlike_log)
+
+    ################################################################################################################################################
 
     def cepstral_analysis(
         self, aic_type="aic", aic_Kmin_corrfactor=1.0, manual_cutoffK=None

@@ -147,9 +147,6 @@ class MaxLikeFilter:
             self.data, self.data.shape.index(max(self.data.shape)), 0
         )
 
-        print("data", self.data.shape)
-        print("guess", guess_data.shape)
-
         # Perform optimization
         self._optimize_parameters(guess_data, minimize_kwargs, write_log)
 
@@ -182,8 +179,10 @@ class MaxLikeFilter:
             self.n_components = n_components
         if n_currents is not None:
             self.n_currents = n_currents
-        if omega_fixed is not None:
-            self.omega_fixed = omega_fixed
+        # if omega_fixed is not None:
+        self.omega_fixed = omega_fixed
+        # else:
+        #     self.omega_fixed = None
 
     def _prepare_data(self, mask):
         """
@@ -264,6 +263,7 @@ class MaxLikeFilter:
                         "Covariance matrix estimated through Laplace approximation."
                     )
                 )
+            self.parameters_cov = cov
             self.parameters_std = np.sqrt(cov.diagonal())
         else:
             if write_log:
@@ -455,6 +455,17 @@ def scale_matrix(model, w, omega, omega_fixed, n):
     S = np.einsum("jiw,jkw->wik", L.conj() if is_complex else L, L)
 
     return S
+
+
+def scale_matrix_std_mc(model, w, omega, omega_fixed, n, cov_w, size=1000):
+    sample = w + np.random.multivariate_normal(
+        mean=np.zeros_like(w), cov=cov_w, size=size
+    )
+    sample_S = np.stack(
+        [scale_matrix(model, ww, omega, omega_fixed, 2) for ww in sample]
+    )
+    S_std = sample_S.std(axis=0)
+    return S_std
 
 
 def normalize_parameters(p, guess):
