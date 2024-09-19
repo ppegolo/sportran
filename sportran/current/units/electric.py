@@ -45,14 +45,7 @@ def scale_kappa_qepw(TEMPERATURE, VOLUME):
       tau_{a.u.} = 4.8378 10^{-17} s
 
     """
-    return (
-        constants.charge**2
-        / TEMPERATURE
-        / constants.kB
-        / VOLUME
-        * 10000.0
-        * constants.J_PWtoMETAL**2
-    )
+    return (constants.charge**2 / TEMPERATURE / constants.kB / VOLUME * 10000.0 * constants.J_PWtoMETAL**2)
 
 
 def scale_kappa_gpumd(TEMPERATURE, VOLUME):
@@ -64,11 +57,4 @@ def scale_kappa_gpumd(TEMPERATURE, VOLUME):
     TEMPERATURE [K]
     VOLUME      cell VOLUME [A^3]
     """
-    return (
-        constants.charge**3
-        / TEMPERATURE
-        / constants.massunit
-        / constants.kB
-        / VOLUME
-        * 1.0e8
-    )
+    return (constants.charge**3 / TEMPERATURE / constants.massunit / constants.kB / VOLUME * 1.0e8)
