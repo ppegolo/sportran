@@ -19,7 +19,7 @@ from sportran.plotter.current import CurrentPlotter
 import warnings
 from copy import deepcopy
 
-__all__ = ['Current']
+__all__ = ["Current"]
 
 
 class Current(MDSample, abc.ABC):
@@ -47,54 +47,74 @@ class Current(MDSample, abc.ABC):
 
     # parameters are class-specific (a HeatCurrent may use different ones wrt ElectricCurrent) and case-insensitive
     _current_type = None
-    _input_parameters = {'DT_FS', 'KAPPA_SCALE'}
-    _optional_parameters = {'PSD_FILTER_W', 'FREQ_UNITS', 'MAIN_CURRENT_INDEX', 'MAIN_CURRENT_FACTOR',}
-    _KAPPA_SI_UNITS = ''
+    _input_parameters = {"DT_FS", "KAPPA_SCALE"}
+    _optional_parameters = {
+        "PSD_FILTER_W",
+        "FREQ_UNITS",
+        "MAIN_CURRENT_INDEX",
+        "MAIN_CURRENT_FACTOR",
+    }
+    _KAPPA_SI_UNITS = ""
     _default_plotter = CurrentPlotter
 
     def __init__(self, traj, **params):
         # e.g. params: (DT_FS, UNITS, TEMPERATURE, VOLUME, PSD_FILTER_W=None, FREQ_UNITS='THz')
         # validate input parameters
 
-        params = {k.upper(): v for k, v in params.items()}   # convert keys to uppercase
+        params = {k.upper(): v for k, v in params.items()}  # convert keys to uppercase
         keyset = set(params.keys())
         if not self._input_parameters.issubset(keyset):
-            raise ValueError('The input parameters {} must be defined.'.format(self._input_parameters - keyset))
+            raise ValueError(
+                "The input parameters {} must be defined.".format(
+                    self._input_parameters - keyset
+                )
+            )
         if not keyset.issubset(self._input_parameters | self._optional_parameters):
             raise ValueError(
-                'The input parameters {} are not valid.'.format(keyset -
-                                                                (self._input_parameters | self._optional_parameters)))
+                "The input parameters {} are not valid.".format(
+                    keyset - (self._input_parameters | self._optional_parameters)
+                )
+            )
 
         # pop non unit-specific parameters
-        PSD_FILTER_W = params.pop('PSD_FILTER_W', None)
-        FREQ_UNITS = params.pop('FREQ_UNITS', 'THz')
+        PSD_FILTER_W = params.pop("PSD_FILTER_W", None)
+        FREQ_UNITS = params.pop("FREQ_UNITS", "THz")
 
-        DT_FS = params.pop('DT_FS')
-        MAIN_CURRENT_INDEX = params.pop('MAIN_CURRENT_INDEX', 0)
-        MAIN_CURRENT_FACTOR = params.pop('MAIN_CURRENT_FACTOR', 1.0)
+        DT_FS = params.pop("DT_FS")
+        MAIN_CURRENT_INDEX = params.pop("MAIN_CURRENT_INDEX", 0)
+        MAIN_CURRENT_FACTOR = params.pop("MAIN_CURRENT_FACTOR", 1.0)
         self.initialize_currents(traj, DT_FS, MAIN_CURRENT_INDEX, MAIN_CURRENT_FACTOR)
-        self.initialize_units(**params)   # KAPPA_SCALE or (e.g. UNITS, TEMPERATURE, VOLUME)
+        self.initialize_units(
+            **params
+        )  # KAPPA_SCALE or (e.g. UNITS, TEMPERATURE, VOLUME)
         if self.traj is not None:
             self.compute_psd(PSD_FILTER_W, FREQ_UNITS)
             self.initialize_cepstral_parameters()
         else:
-            log.write_log('Warning: trajectory not initialized. You should manually initialize what you need.')
+            log.write_log(
+                "Warning: trajectory not initialized. You should manually initialize what you need."
+            )
         self.cepf = None
 
     def __repr__(self):
-        msg = (type(self).__name__ + '\n  N_CURRENTS  =  {}\n'.format(self.N_CURRENTS) +
-               '  KAPPA_SCALE =  {}\n'.format(self.KAPPA_SCALE))
-        for key in self._input_parameters - {'DT_FS', 'KAPPA_SCALE'}:
-            msg += '  {:11} =  {}\n'.format(key, getattr(self, key))
+        msg = (
+            type(self).__name__
+            + "\n  N_CURRENTS  =  {}\n".format(self.N_CURRENTS)
+            + "  KAPPA_SCALE =  {}\n".format(self.KAPPA_SCALE)
+        )
+        for key in self._input_parameters - {"DT_FS", "KAPPA_SCALE"}:
+            msg += "  {:11} =  {}\n".format(key, getattr(self, key))
         msg += super().__repr__()
         if self.otherMD:
-            msg += 'additional currents:\n'
+            msg += "additional currents:\n"
             for current in self.otherMD:
                 msg += current.__repr__()
         if self.cepf:
             msg += self.cepf.__repr__()
         try:
-            msg += '\n  kappa* = {:18f} +/- {:10f}  {}\n'.format(self.kappa, self.kappa_std, self._KAPPA_SI_UNITS)
+            msg += "\n  kappa* = {:18f} +/- {:10f}  {}\n".format(
+                self.kappa, self.kappa_std, self._KAPPA_SI_UNITS
+            )
         except AttributeError:
             pass
         return msg
@@ -141,7 +161,9 @@ class Current(MDSample, abc.ABC):
         # (note: it is not possible to delete the parent class' attributes from a child. But here we forcibly do this operation on cls = Current)
         super().set_plotter(plotter)
 
-    def initialize_currents(self, j, DT_FS, main_current_index=0, main_current_factor=1.0):
+    def initialize_currents(
+        self, j, DT_FS, main_current_index=0, main_current_factor=1.0
+    ):
         # check if we have a multicomponent fluid
         j = np.array(j, dtype=float)
         if len(j.shape) == 3:
@@ -155,16 +177,22 @@ class Current(MDSample, abc.ABC):
             self.N_CURRENTS = 1
             self.MANY_CURRENTS = False
         else:
-            raise ValueError('Shape of j {} not valid.'.format(j.shape))
+            raise ValueError("Shape of j {} not valid.".format(j.shape))
 
         if self.MANY_CURRENTS:
-            log.write_log('Using multicomponent code.')
-            super().__init__(traj=(j[main_current_index] * main_current_factor), DT_FS=DT_FS)
+            log.write_log("Using multicomponent code.")
+            super().__init__(
+                traj=(j[main_current_index] * main_current_factor), DT_FS=DT_FS
+            )
             # initialize other MDSample currents
-            other_currents_idxs = (np.arange(self.N_CURRENTS) != main_current_index)   # select the other currents
-            self.otherMD = [MDSample(traj=js, DT_FS=DT_FS) for js in j[other_currents_idxs]]
+            other_currents_idxs = (
+                np.arange(self.N_CURRENTS) != main_current_index
+            )  # select the other currents
+            self.otherMD = [
+                MDSample(traj=js, DT_FS=DT_FS) for js in j[other_currents_idxs]
+            ]
         else:
-            log.write_log('Using single component code.')
+            log.write_log("Using single component code.")
             super().__init__(traj=(j * main_current_factor), DT_FS=DT_FS)
             self.otherMD = None
 
@@ -178,23 +206,33 @@ class Current(MDSample, abc.ABC):
             # get the units submodule corresponding to this class
             units_module = getattr(units, cls._current_type)
         except AttributeError:
-            print('No units submodule defined for the current type "{}". Add units to a file "current/units/{}.py".'.
-                  format(cls._current_type, cls._current_type))
+            print(
+                'No units submodule defined for the current type "{}". Add units to a file "current/units/{}.py".'.format(
+                    cls._current_type, cls._current_type
+                )
+            )
             return {}
         except TypeError:
-            raise RuntimeError('No units can be defined for a generic Current. Define a "KAPPA_SCALE" instead.')
+            raise RuntimeError(
+                'No units can be defined for a generic Current. Define a "KAPPA_SCALE" instead.'
+            )
 
         # get all functions that start with "scale_kappa_" into a dictionary {"name": function}
-        units_prefix = 'scale_kappa_'
+        units_prefix = "scale_kappa_"
         units_d = {
-            name.replace(units_prefix, ''): function for name, function in inspect.getmembers(
-                units_module, predicate=lambda f: inspect.isfunction(f) and f.__name__.startswith(units_prefix),
+            name.replace(units_prefix, ""): function
+            for name, function in inspect.getmembers(
+                units_module,
+                predicate=lambda f: inspect.isfunction(f)
+                and f.__name__.startswith(units_prefix),
             )
         }
         if not units_d:
             print(
                 'Warning: No units defined for a current type "{}". Add them to the module "current/units/{}.py'.format(
-                    cls._current_type, cls._current_type))
+                    cls._current_type, cls._current_type
+                )
+            )
         return units_d
 
     @classmethod
@@ -210,7 +248,7 @@ class Current(MDSample, abc.ABC):
         """
         Initializes the units and defines the KAPPA_SCALE.
         """
-        self.UNITS = parameters.pop('UNITS', None)
+        self.UNITS = parameters.pop("UNITS", None)
 
         # set unit-specific parameters
         for param, value in parameters.items():
@@ -222,15 +260,20 @@ class Current(MDSample, abc.ABC):
             if len(units_list) == 0:
                 raise RuntimeError(
                     'No units defined for a current type "{}". Add them to the module "current/units/{}.py'.format(
-                        self._current_type, self._current_type))
+                        self._current_type, self._current_type
+                    )
+                )
             elif self.UNITS in units_list:
                 units_conversion_func = self._get_units()[self.UNITS]
                 self.KAPPA_SCALE = units_conversion_func(**parameters)
             else:
-                raise ValueError('Units "{}" not valid. Valid units are:\n  {}'.format(
-                    self.UNITS, self.get_units_list()))
+                raise ValueError(
+                    'Units "{}" not valid. Valid units are:\n  {}'.format(
+                        self.UNITS, self.get_units_list()
+                    )
+                )
 
-    def compute_psd(self, PSD_FILTER_W=None, freq_units='THz'):
+    def compute_psd(self, PSD_FILTER_W=None, freq_units="THz"):
         # overrides MDSample method
         """
         Compute the periodogram from the heat current time series.
@@ -241,18 +284,28 @@ class Current(MDSample, abc.ABC):
         self.ndf_chi = self.N_EQUIV_COMPONENTS - self.N_CURRENTS + 1
         if self.ndf_chi <= 0:
             warnings.warn(
-                'The number of degrees of freedom of the chi-squared distribution is <=0. The number of '
-                'equivalent (Cartesian) components of the input current must be >= number of currents.', RuntimeWarning,
+                "The number of degrees of freedom of the chi-squared distribution is <=0. The number of "
+                "equivalent (Cartesian) components of the input current must be >= number of currents.",
+                RuntimeWarning,
             )
 
         if self.MANY_CURRENTS:
             if self.otherMD is None:
-                raise RuntimeError('self.otherMD cannot be None (wrong/missing initialization?)')
+                raise RuntimeError(
+                    "self.otherMD cannot be None (wrong/missing initialization?)"
+                )
             self._compute_psd_multi(self.otherMD, PSD_FILTER_W, freq_units)
         else:
             super().compute_psd(PSD_FILTER_W, freq_units)
 
-    def _compute_psd_multi(self, others, PSD_FILTER_W=None, freq_units='THz', normalize=False, call_other=True,):
+    def _compute_psd_multi(
+        self,
+        others,
+        PSD_FILTER_W=None,
+        freq_units="THz",
+        normalize=False,
+        call_other=True,
+    ):
         """
         For multi-component (many-current) systems: compute the cospectrum matrix and the transport coefficient.
         The results have almost the same statistical properties.
@@ -274,7 +327,7 @@ class Current(MDSample, abc.ABC):
         if not isinstance(others, (list, tuple, np.ndarray)):
             others = [others]
         if self.traj is None:
-            raise ValueError('Trajectory not defined.')
+            raise ValueError("Trajectory not defined.")
 
         self.spectrALL = np.fft.rfft(self.traj, axis=0)
         self.NFREQS = self.spectrALL.shape[0]
@@ -286,8 +339,10 @@ class Current(MDSample, abc.ABC):
 
         # calculate the same thing on the other trajectory
         if call_other:
-            for other in others:   # call other._compute_psd_multi (MDsample method)
-                Current._compute_psd_multi(other, [self], PSD_FILTER_W, freq_units, normalize, False)
+            for other in others:  # call other._compute_psd_multi (MDsample method)
+                Current._compute_psd_multi(
+                    other, [self], PSD_FILTER_W, freq_units, normalize, False
+                )
         else:
             return
 
@@ -299,10 +354,15 @@ class Current(MDSample, abc.ABC):
             other_spectrALL.append(other.spectrALL)
 
         # compute the matrix defined by the outer product of only the first indexes of the two arrays
-        covarALL = (self.DT_FS / (2.0 * (self.NFREQS - 1.0)) *
-                    np.einsum('a...,b...->ab...', np.array([self.spectrALL] + other_spectrALL),
-                              np.array([self.spectrALL] + other_spectrALL).conj(),
-                             ))
+        covarALL = (
+            self.DT_FS
+            / (2.0 * (self.NFREQS - 1.0))
+            * np.einsum(
+                "a...,b...->ab...",
+                np.array([self.spectrALL] + other_spectrALL),
+                np.array([self.spectrALL] + other_spectrALL).conj(),
+            )
+        )
 
         # number of degrees of freedom of the chi-square distribution of the psd / 2
         assert self.ndf_chi == (covarALL.shape[3] - len(other_spectrALL))
@@ -312,7 +372,9 @@ class Current(MDSample, abc.ABC):
 
         # compute the element 1/"(0,0) of the inverse" (aka the transport coefficient)
         # the diagonal elements of the inverse have very convenient statistical properties
-        multi_psd = (np.linalg.inv(self.cospectrum.transpose((2, 0, 1)))[:, 0, 0]**-1).real / self.ndf_chi
+        multi_psd = (
+            np.linalg.inv(self.cospectrum.transpose((2, 0, 1)))[:, 0, 0] ** -1
+        ).real / self.ndf_chi
 
         if normalize:
             multi_psd = multi_psd / np.trapz(multi_psd) / self.N / self.DT_FS
@@ -320,11 +382,17 @@ class Current(MDSample, abc.ABC):
         self.psd = multi_psd
         self.logpsd = np.log(self.psd)
         self.psd_min = np.min(self.psd)
-        self.psd_power = np.trapz(self.psd)   # one-side PSD power
+        self.psd_power = np.trapz(self.psd)  # one-side PSD power
         if (PSD_FILTER_W is not None) or (self.PSD_FILTER_W is not None):
             self.filter_psd(PSD_FILTER_W, freq_units)
 
-    def filter_psd(self, PSD_FILTER_W=None, freq_units='THz', window_type='rectangular', logpsd_filter_type=1,):
+    def filter_psd(
+        self,
+        PSD_FILTER_W=None,
+        freq_units="THz",
+        window_type="rectangular",
+        logpsd_filter_type=1,
+    ):
         """
         Filter the periodogram with the given PSD_FILTER_W [freq_units].
           - PSD_FILTER_W  PSD filter window [freq_units]
@@ -333,7 +401,7 @@ class Current(MDSample, abc.ABC):
         """
         super().filter_psd(PSD_FILTER_W, freq_units, window_type, logpsd_filter_type)
 
-        if window_type == 'rectangular':
+        if window_type == "rectangular":
             # try to filter the other currents (if present)
             if self.cospectrum is not None:
                 self.fcospectrum = []
@@ -350,44 +418,88 @@ class Current(MDSample, abc.ABC):
         """
         if not self.MANY_CURRENTS:
             self.ck_THEORY_var, self.psd_THEORY_mean = multicomp_cepstral_parameters(
-                self.NFREQS, self.N_EQUIV_COMPONENTS)
+                self.NFREQS, self.N_EQUIV_COMPONENTS
+            )
         else:
             if self.ndf_chi is None:
-                raise RuntimeError('self.ndf_chi cannot be None.')
-            self.ck_THEORY_var, self.psd_THEORY_mean = multicomp_cepstral_parameters(self.NFREQS, self.ndf_chi)
+                raise RuntimeError("self.ndf_chi cannot be None.")
+            self.ck_THEORY_var, self.psd_THEORY_mean = multicomp_cepstral_parameters(
+                self.NFREQS, self.ndf_chi
+            )
 
-    def bayesian_analysis(self, model, n_parameters, is_restart=False, n_steps=2000000, backend='chain.h5',
-                          burn_in=None, thin=None, mask=None, log_like='off', parallel=False, ncpus=1,
-                         ):
+    def bayesian_analysis(
+        self,
+        model,
+        n_parameters,
+        is_restart=False,
+        n_steps=2000000,
+        backend="chain.h5",
+        burn_in=None,
+        thin=None,
+        mask=None,
+        log_like="off",
+        parallel=False,
+        ncpus=1,
+    ):
         if parallel:
-            self.bayes = BayesFilter_parallel(self.cospectrum, model, n_parameters, self.N_EQUIV_COMPONENTS,
-                                              is_restart=is_restart, n_steps=n_steps, backend=backend, burn_in=burn_in,
-                                              thin=thin, ncpus=ncpus, mask=mask,
-                                             )
+            self.bayes = BayesFilter_parallel(
+                self.cospectrum,
+                model,
+                n_parameters,
+                self.N_EQUIV_COMPONENTS,
+                is_restart=is_restart,
+                n_steps=n_steps,
+                backend=backend,
+                burn_in=burn_in,
+                thin=thin,
+                ncpus=ncpus,
+                mask=mask,
+            )
             self.bayes.run_mcmc(log_like=log_like)
         else:
-            self.bayes = BayesFilter(self.cospectrum, model, n_parameters, self.N_EQUIV_COMPONENTS,
-                                     is_restart=is_restart, n_steps=n_steps, backend=backend, burn_in=burn_in,
-                                     thin=thin, mask=mask,
-                                    )
+            self.bayes = BayesFilter(
+                self.cospectrum,
+                model,
+                n_parameters,
+                self.N_EQUIV_COMPONENTS,
+                is_restart=is_restart,
+                n_steps=n_steps,
+                backend=backend,
+                burn_in=burn_in,
+                thin=thin,
+                mask=mask,
+            )
             self.bayes.run_mcmc(log_like=log_like)
 
         self.offdiag = self.bayes.parameters_mean[0] * self.bayes.factor
         self.offdiag_std = self.bayes.parameters_std[0] * self.bayes.factor
 
-        self.bayesian_log = ('-----------------------------------------------------\n' + '  BAYESIAN ANALYSIS\n' +
-                             '-----------------------------------------------------\n')
-        self.bayesian_log += ('  L_01   = {:18f} +/- {:10f}\n'.format(self.offdiag, self.offdiag_std) +
-                              '-----------------------------------------------------\n')
+        self.bayesian_log = (
+            "-----------------------------------------------------\n"
+            + "  BAYESIAN ANALYSIS\n"
+            + "-----------------------------------------------------\n"
+        )
+        self.bayesian_log += (
+            "  L_01   = {:18f} +/- {:10f}\n".format(self.offdiag, self.offdiag_std)
+            + "-----------------------------------------------------\n"
+        )
         log.write_log(self.bayesian_log)
-        with open('bayesian_analysis_{}'.format(n_parameters), 'w+') as g:
-            g.write('{}\t{}\n'.format(self.offdiag, self.offdiag_std))
+        with open("bayesian_analysis_{}".format(n_parameters), "w+") as g:
+            g.write("{}\t{}\n".format(self.offdiag, self.offdiag_std))
 
     ####################################################################################
     # MAXLIKE methods
-    def maxlike_estimate(self, model, n_parameters='AIC', mask=None, likelihood='wishart', solver='BFGS',
-                         guess_runave_window=50, minimize_kwargs=None,
-                        ):
+    def maxlike_estimate(
+        self,
+        model,
+        n_parameters="AIC",
+        mask=None,
+        likelihood="wishart",
+        solver="BFGS",
+        guess_runave_window=50,
+        minimize_kwargs=None,
+        ext_guess=None,
+    ):
         """
         Perform maximum likelihood estimation and optionally select the optimal number of parameters using AIC.
         """
@@ -396,316 +508,100 @@ class Current(MDSample, abc.ABC):
         # Get the appropriate data based on likelihood type
         data = self._get_data_by_likelihood(likelihood)
 
-        # Define MaxLikeFilter object
-        _maxlike = MaxLikeFilter(data=data, model=model, n_components=self.N_EQUIV_COMPONENTS,
-                                 n_currents=self.N_CURRENTS, likelihood=likelihood, solver=solver,
-                                )
+        # Initialize MaxLikeFilter object
+        self.maxlike = MaxLikeFilter(
+            data=data,
+            model=model,
+            n_components=self.N_EQUIV_COMPONENTS,
+            n_currents=self.N_CURRENTS,
+            likelihood=likelihood,
+            solver=solver,
+            ext_guess=ext_guess,
+        )
 
-        if isinstance(n_parameters, int):
-            self._run_maxlike_fixed_parameters(_maxlike, n_parameters, mask, guess_runave_window, minimize_kwargs)
+        # Run the maximum likelihood estimation
+        self.maxlike.maxlike(
+            n_parameters=n_parameters,
+            mask=mask,
+            guess_runave_window=guess_runave_window,
+            minimize_kwargs=minimize_kwargs,
+        )
+
+        # Extract and scale results
+        self.maxlike.extract_and_scale_results()
+
+        # Access the results from self.maxlike
+        self.NLL_mean = self.maxlike.NLL_mean
+        self.NLL_std = self.maxlike.NLL_std
+        # self.NLL_upper = getattr(self.maxlike, "NLL_upper", None)
+        # self.NLL_lower = getattr(self.maxlike, "NLL_lower", None)
+
+        # Store additional results if needed
+        self.optimal_nparameters = getattr(self.maxlike, "optimal_nparameters", None)
+        self.aic_values = getattr(self.maxlike, "aic_values", None)
+
+        # Add logging for the MLE results
+        self.mle_log = (
+            "-----------------------------------------------------\n"
+            + "  MAXIMUM LIKELIHOOD ESTIMATION\n"
+            + "-----------------------------------------------------\n"
+        )
+
+        if isinstance(n_parameters, str) and n_parameters.lower() == "aic":
+            self.mle_log += "  Optimal n_parameters (AIC) = {:d}\n".format(
+                self.optimal_nparameters
+            )
         else:
-            n_parameters = self._prepare_n_parameters(n_parameters)
-            self._run_maxlike_aic(_maxlike, n_parameters, mask, guess_runave_window, minimize_kwargs,
-                                  data=data,   # TODO find a simple way to avoid this
-                                 )
+            self.mle_log += "  Fixed n_parameters = {:d}\n".format(
+                self.maxlike.n_parameters
+            )
 
-        # Extract results and scale the matrices
-        self._extract_and_scale_results(_maxlike, model, likelihood)
+        if likelihood == "wishart":
+            # Iterate over the upper triangle (including the diagonal)
+            for i in range(self.N_CURRENTS):
+                for j in range(i, self.N_CURRENTS):
+                    mean_val = self.NLL_mean[0, i, j]
+                    std_val = self.NLL_std[0, i, j]
+
+                    self.mle_log += (
+                        f"  S_{{{i}{j}}} = {mean_val:18f} +/- {std_val:10f}\n"
+                    )
+        else:
+            mean_val = self.NLL_mean[0] * self.KAPPA_SCALE / 2
+            std_val = self.NLL_std[0] * self.KAPPA_SCALE / 2
+
+            self.mle_log += "  kappa* = {:18f} +/- {:10f}  {}\n".format(
+                mean_val, std_val, self._KAPPA_SI_UNITS
+            )
+            # self.mle_log += f"  S_{{{i}{j}}} = {mean_val:18f} +/- {std_val:10f}\n"
+
+        self.mle_log += "-----------------------------------------------------\n"
+
+        log.write_log(self.mle_log)
 
     def _get_data_by_likelihood(self, likelihood):
         """
         Get the data to be used for the likelihood estimation based on the provided likelihood type.
         """
         likelihood = likelihood.lower()
-        if likelihood == 'wishart':
+        if likelihood == "wishart":
             return self.cospectrum.real * self.N_CURRENTS
-        elif likelihood in ['chisquare', 'chisquared']:
-            return self.psd * self.N_CURRENTS
-        elif likelihood in ['variancegamma', 'variance-gamma']:
-            return self.cospectrum.real[0, 1]   # * self.N_CURRENTS
+        elif likelihood in ["chisquare", "chisquared"]:
+            return (
+                self.psd  # * 2 * self.ndf_chi
+            )  # now the distribution of data is S*chisquare(dof=2*(ell-M+1))
+        elif likelihood in ["variancegamma", "variance-gamma"]:
+            return self.cospectrum.real[0, 1]  # * self.N_CURRENTS
         else:
-            raise ValueError('Likelihood must be Wishart, Chi-square, or Variance-Gamma.')
-
-    def _run_maxlike_fixed_parameters(self, maxlike_filter, n_parameters, mask, guess_runave_window, minimize_kwargs):
-        """
-        Run maximum likelihood estimation with a fixed number of parameters.
-        """
-        maxlike_filter.maxlike(mask=mask, guess_runave_window=guess_runave_window, n_parameters=n_parameters,
-                               minimize_kwargs=minimize_kwargs,
-                              )
-        self.maxlike = maxlike_filter
-
-    def _prepare_n_parameters(self, n_parameters):
-        """
-        Prepare the number of parameters array based on input.
-        """
-        if isinstance(n_parameters, (list, np.ndarray)):
-            assert np.issubdtype(np.asarray(n_parameters).dtype,
-                                 np.integer), '`n_parameter` must be an integer array-like'
-            log.write_log(
-                f'Optimal number of parameters between {np.min(n_parameters)} and {np.max(n_parameters)} chosen by AIC')
-        elif isinstance(n_parameters, str) and n_parameters.lower() == 'aic':
-            n_parameters = np.arange(3, 40)
-            log.write_log('Optimal number of parameters between 3 and 40 chosen by AIC')
-        return n_parameters
-
-    def _run_maxlike_aic(self, maxlike_filter, n_parameters, mask, guess_runave_window, minimize_kwargs, data=None,):
-        """
-        Run maximum likelihood estimation over a range of parameters and choose the best one with AIC.
-        """
-        _aic = []
-        _aic_max = -np.inf
-        _steps_since_last_aic_update = 0
-        convergence_is_reached = False
-
-        for n_par in n_parameters:
-            if convergence_is_reached:
-                break
-            log.write_log(f'n_parameters = {n_par}')
-            maxlike_filter.maxlike(data=data, omega_fixed=None, mask=mask, guess_runave_window=guess_runave_window,
-                                   n_parameters=int(n_par), minimize_kwargs=minimize_kwargs,
-                                  )
-
-            _new_aic = maxlike_filter.log_likelihood_value - n_par
-            _aic.append(_new_aic)
-
-            if _new_aic > _aic_max:
-                _aic_max = _new_aic
-                self.optimal_nparameters = n_par
-                self.maxlike = deepcopy(maxlike_filter)
-                _steps_since_last_aic_update = 0
-            else:
-                _steps_since_last_aic_update += 1
-
-            if _steps_since_last_aic_update > 5:
-                convergence_is_reached = True
-
-            print('aic:', _new_aic, '; Steps since last aic update:', _steps_since_last_aic_update, flush=True,)
-
-        self.aic_values = np.array(_aic)
-
-    def _extract_and_scale_results(self, maxlike_filter, model, likelihood):
-        """
-        Extract results from maxlike_filter and scale the matrices accordingly.
-        """
-        omega_fixed = maxlike_filter.omega_fixed
-        params = maxlike_filter.parameters_mean
-        params_std = maxlike_filter.parameters_std
-        om = maxlike_filter.omega
-
-        if likelihood == 'wishart':
-            from sportran.md.maxlike import scale_matrix, scale_matrix_std_mc
-
-            self.NLL_mean = (
-                scale_matrix(model, params, om, omega_fixed, self.N_CURRENTS)
-            # * self.N_EQUIV_COMPONENTS
-                / self.N_CURRENTS)
-
-            self.NLL_std = (
-                scale_matrix_std_mc(model, params, om, omega_fixed, self.N_CURRENTS, maxlike_filter.parameters_cov,
-                                    size=1000,
-                                   )
-            # * self.N_EQUIV_COMPONENTS
-                / self.N_CURRENTS)
-            # try:
-            #     self.NLL_upper = (
-            #         scale_matrix(
-            #             model, params + params_std, om, omega_fixed, self.N_CURRENTS
-            #         )
-            #         * self.N_EQUIV_COMPONENTS
-            #         / self.N_CURRENTS
-            #     )
-            #     self.NLL_lower = (
-            #         scale_matrix(
-            #             model, params - params_std, om, omega_fixed, self.N_CURRENTS
-            #         )
-            #         * self.N_EQUIV_COMPONENTS
-            #         / self.N_CURRENTS
-            #     )
-            # except TypeError:
-            #     pass
-        else:
-            _NLL_spline = model(omega_fixed, params)
-            fact = np.sqrt(self.N_EQUIV_COMPONENTS) / self.N_CURRENTS / np.sqrt(2)
-            self.NLL_mean = _NLL_spline(om) * fact
-            try:
-                _NLL_spline_upper = model(omega_fixed, params + params_std)
-                _NLL_spline_lower = model(omega_fixed, params - params_std)
-                self.NLL_upper = _NLL_spline_upper(om) * fact
-                self.NLL_lower = _NLL_spline_lower(om) * fact
-            except TypeError:
-                pass
-
-    # def maxlike_estimate(
-    #     self,
-    #     model,
-    #     n_parameters="AIC",
-    #     mask=None,
-    #     likelihood="wishart",
-    #     solver="BFGS",
-    #     guess_runave_window=50,
-    #     minimize_kwargs={},
-    # ):
-
-    #     if likelihood.lower() == "wishart":
-    #         data = self.cospectrum.real * self.N_CURRENTS
-    #     elif likelihood.lower() == "chisquare" or likelihood.lower() == "chisquared":
-    #         data = self.psd * self.N_CURRENTS
-    #     elif likelihood == "variancegamma" or likelihood == "variance-gamma":
-    #         data = self.cospectrum.real[0, 1]  # * self.N_CURRENTS
-    #     else:
-    #         raise ValueError(
-    #             "Likelihood must be Wishart, Chi-square, or Variance-Gamma."
-    #         )
-
-    #     # Define MaxLikeFilter object
-    #     _maxlike = MaxLikeFilter(
-    #         # self.maxlike = MaxLikeFilter(
-    #         data=data,
-    #         model=model,
-    #         n_components=self.N_EQUIV_COMPONENTS,
-    #         n_currents=self.N_CURRENTS,
-    #         likelihood=likelihood,
-    #         solver=solver,
-    #     )
-
-    #     if isinstance(n_parameters, int):
-    #         do_AIC = False
-    #         # Minimize the negative log-likelihood with a fixed number of parameters
-    #         # self.maxlike.maxlike(
-    #         _maxlike.maxlike(
-    #             mask=mask,
-    #             guess_runave_window=guess_runave_window,
-    #             n_parameters=n_parameters,
-    #             minimize_kwargs=minimize_kwargs,
-    #         )
-
-    #     elif isinstance(n_parameters, list) or isinstance(n_parameters, np.ndarray):
-    #         do_AIC = True
-    #         assert np.issubdtype(
-    #             np.asarray(n_parameters).dtype, np.integer
-    #         ), "`n_parameter` must be an integer array-like"
-    #         log.write_log(
-    #             f"Optimal number of parameters between {np.min(n_parameters)} and {np.max(n_parameters)} chosen by AIC"
-    #         )
-
-    #     elif isinstance(n_parameters, str) and n_parameters.lower() == "aic":
-    #         do_AIC = True
-    #         n_parameters = np.arange(3, 40)
-    #         log.write_log("Optimal number of parameters between 3 and 40 chosen by AIC")
-
-    #     if do_AIC:
-    #         # Minimize the negative log-likelihood on a range of parameters and choose the best one with the AIC
-    #         _aic = []
-    #         _filters = []
-    #         # for n_par in n_parameters:
-    #         n_par = n_parameters[0]
-    #         convergence_is_reached = False
-    #         _aic_max = -np.inf
-    #         while n_par <= n_parameters[-1] and not convergence_is_reached:
-    #             log.write_log(f"n_parameters = {n_par}")
-    #             # self.maxlike.maxlike(
-    #             _maxlike.maxlike(
-    #                 data=data,  # FIXME: needs to be passed because maxlike.data has permuted dimensions
-    #                 mask=mask,
-    #                 guess_runave_window=guess_runave_window,
-    #                 n_parameters=int(n_par),
-    #                 omega_fixed=None,
-    #                 write_log=False,
-    #                 minimize_kwargs=minimize_kwargs,
-    #             )
-
-    #             # _new_aic = self.maxlike.log_likelihood_value - n_par
-    #             _new_aic = _maxlike.log_likelihood_value - n_par
-    #             _aic.append(_new_aic)
-    #             if np.max(_aic) > _aic_max:
-    #                 _aic_max = np.max(_aic)
-    #                 self.optimal_nparameters = n_par
-    #                 self.maxlike = deepcopy(_maxlike)
-    #                 _steps_since_last_aic_update = 0
-    #             else:
-    #                 _steps_since_last_aic_update += 1
-    #             if _steps_since_last_aic_update > 5:
-    #                 convergence_is_reached = True
-
-    #             # _filters.append(deepcopy(self.maxlike))
-    #             n_par += 1
-    #             print(
-    #                 "aic:",
-    #                 _new_aic,
-    #                 "; Steps since last aic update:",
-    #                 _steps_since_last_aic_update,
-    #                 flush=True,
-    #             )
-    #         # self.optimal_nparameters = n_parameters[np.argmax(_aic)]
-    #         # self.maxlike = _filters[np.argmax(_aic)]
-    #         self.aic_values = np.array(_aic)
-    #         del _filters
-    #         del _aic
-    #     else:
-    #         self.maxlike = _maxlike
-
-    #     omega_fixed = self.maxlike.omega_fixed
-    #     params = self.maxlike.parameters_mean
-    #     params_std = self.maxlike.parameters_std
-
-    #     om = self.maxlike.omega
-    #     if likelihood == "wishart":
-    #         from sportran.md.maxlike import scale_matrix
-
-    #         self.NLL_mean = (
-    #             scale_matrix(model, params, om, omega_fixed, self.N_CURRENTS)
-    #             * self.N_EQUIV_COMPONENTS
-    #             / self.N_CURRENTS
-    #         )
-    #         try:
-    #             self.NLL_upper = (
-    #                 scale_matrix(
-    #                     model, params + params_std, om, omega_fixed, self.N_CURRENTS
-    #                 )
-    #                 * self.N_EQUIV_COMPONENTS
-    #                 / self.N_CURRENTS
-    #             )
-    #             self.NLL_lower = (
-    #                 scale_matrix(
-    #                     model, params - params_std, om, omega_fixed, self.N_CURRENTS
-    #                 )
-    #                 * self.N_EQUIV_COMPONENTS
-    #                 / self.N_CURRENTS
-    #             )
-    #         except TypeError:
-    #             pass
-    #     else:
-    #         _NLL_spline = model(omega_fixed, params)
-    #         fact = np.sqrt(self.N_EQUIV_COMPONENTS) / self.N_CURRENTS / np.sqrt(2)
-    #         self.NLL_mean = _NLL_spline(om) * fact
-    #         try:
-    #             _NLL_spline_upper = model(omega_fixed, params + params_std)
-    #             _NLL_spline_lower = model(omega_fixed, params - params_std)
-    #             self.NLL_upper = _NLL_spline_upper(om) * fact
-    #             self.NLL_lower = _NLL_spline_lower(om) * fact
-    #         except TypeError:
-    #             pass
-
-    #     # self.estimate = self.maxlike.parameters_mean[0]*self.maxlike.factor
-
-    #     # try:
-    #     #     self.estimate_std = self.bayes.parameters_std[0]*self.maxlike.factor
-    #     # except:
-    #     #     self.estimate_std = None
-
-    #     # self.maxlike_log = \
-    #     #       '-----------------------------------------------------\n' +\
-    #     #       '  MAXIMUM LIKELIHOOD PARAMETER ESTIMATION\n' +\
-    #     #       '-----------------------------------------------------\n'
-    #     # self.maxlike_log += \
-    #     #       '  L_01   = {:18f} +/- {:10f}\n'.format(self.estimate, self.estimate_std) +\
-    #     #       '-----------------------------------------------------\n'
-    #     # log.write_log(self.maxlike_log)
+            raise ValueError(
+                "Likelihood must be Wishart, Chi-square, or Variance-Gamma."
+            )
 
     ################################################################################################################################################
 
-    def cepstral_analysis(self, aic_type='aic', aic_Kmin_corrfactor=1.0, manual_cutoffK=None):
+    def cepstral_analysis(
+        self, aic_type="aic", aic_Kmin_corrfactor=1.0, manual_cutoffK=None
+    ):
         """
         Performs Cepstral Analysis on the Current's trajectory.
 
@@ -726,27 +622,46 @@ class Current(MDSample, abc.ABC):
         The log of the analysis can be retried from the variable `self.cepstral_log`.
         """
 
-        self.cepf = CepstralFilter(self.logpsd, ck_theory_var=self.ck_THEORY_var, psd_theory_mean=self.psd_THEORY_mean,
-                                   aic_type=aic_type,
-                                  )
-        self.cepf.scan_filter_tau(cutoffK=manual_cutoffK, aic_Kmin_corrfactor=aic_Kmin_corrfactor)
+        self.cepf = CepstralFilter(
+            self.logpsd,
+            ck_theory_var=self.ck_THEORY_var,
+            psd_theory_mean=self.psd_THEORY_mean,
+            aic_type=aic_type,
+        )
+        self.cepf.scan_filter_tau(
+            cutoffK=manual_cutoffK, aic_Kmin_corrfactor=aic_Kmin_corrfactor
+        )
         self.kappa = self.cepf.tau_cutoffK * self.KAPPA_SCALE * 0.5
         self.kappa_std = self.cepf.tau_std_cutoffK * self.KAPPA_SCALE * 0.5
 
-        self.cepstral_log = ('-----------------------------------------------------\n' + '  CEPSTRAL ANALYSIS\n' +
-                             '-----------------------------------------------------\n')
+        self.cepstral_log = (
+            "-----------------------------------------------------\n"
+            + "  CEPSTRAL ANALYSIS\n"
+            + "-----------------------------------------------------\n"
+        )
         if not self.cepf.manual_cutoffK_flag:
-            self.cepstral_log += '  cutoffK = (P*-1) = {:d}  (auto, AIC_Kmin = {:d}, corr_factor = {:4})\n'.format(
-                self.cepf.cutoffK, self.cepf.aic_Kmin, self.cepf.aic_Kmin_corrfactor)
+            self.cepstral_log += "  cutoffK = (P*-1) = {:d}  (auto, AIC_Kmin = {:d}, corr_factor = {:4})\n".format(
+                self.cepf.cutoffK, self.cepf.aic_Kmin, self.cepf.aic_Kmin_corrfactor
+            )
         else:
-            self.cepstral_log += ('  cutoffK  = (P*-1) = {:d}  (manual, AIC_Kmin = {:d})\n'.format(
-                self.cepf.cutoffK, self.cepf.aic_Kmin, self.cepf.aic_Kmin_corrfactor))
+            self.cepstral_log += (
+                "  cutoffK  = (P*-1) = {:d}  (manual, AIC_Kmin = {:d})\n".format(
+                    self.cepf.cutoffK, self.cepf.aic_Kmin, self.cepf.aic_Kmin_corrfactor
+                )
+            )
         self.cepstral_log += (
-            '  L_0*   = {:18f} +/- {:10f}\n'.format(self.cepf.logtau_cutoffK, self.cepf.logtau_std_cutoffK) +
-            '  S_0*   = {:18f} +/- {:10f}\n'.format(self.cepf.tau_cutoffK, self.cepf.tau_std_cutoffK) +
-            '-----------------------------------------------------\n' +
-            '  kappa* = {:18f} +/- {:10f}  {}\n'.format(self.kappa, self.kappa_std, self._KAPPA_SI_UNITS) +
-            '-----------------------------------------------------\n')
+            "  L_0*   = {:18f} +/- {:10f}\n".format(
+                self.cepf.logtau_cutoffK, self.cepf.logtau_std_cutoffK
+            )
+            + "  S_0*   = {:18f} +/- {:10f}\n".format(
+                self.cepf.tau_cutoffK, self.cepf.tau_std_cutoffK
+            )
+            + "-----------------------------------------------------\n"
+            + "  kappa* = {:18f} +/- {:10f}  {}\n".format(
+                self.kappa, self.kappa_std, self._KAPPA_SI_UNITS
+            )
+            + "-----------------------------------------------------\n"
+        )
         log.write_log(self.cepstral_log)
 
     def resample(
@@ -756,7 +671,7 @@ class Current(MDSample, abc.ABC):
         FILTER_W=None,
         plot=False,
         PSD_FILTER_W=None,
-        freq_units='THz',
+        freq_units="THz",
         FIGSIZE=None,
         verbose=True,
     ):  # yapf: disable
@@ -782,21 +697,28 @@ class Current(MDSample, abc.ABC):
         xf : a filtered & resampled time series object
         ax : an array of plot axes, optional (if plot=True)
         """
-        xf = super().resample(TSKIP, fstar_THz, FILTER_W, False, PSD_FILTER_W, freq_units, None, verbose)
+        xf = super().resample(
+            TSKIP, fstar_THz, FILTER_W, False, PSD_FILTER_W, freq_units, None, verbose
+        )
 
         if plot:
             try:
-                axs = self.plot_resample(xf=xf, freq_units=freq_units, PSD_FILTER_W=PSD_FILTER_W, FIGSIZE=FIGSIZE,)
+                axs = self.plot_resample(
+                    xf=xf,
+                    freq_units=freq_units,
+                    PSD_FILTER_W=PSD_FILTER_W,
+                    FIGSIZE=FIGSIZE,
+                )
                 return xf, axs
             except AttributeError:
-                print('Plotter does not support the plot_resample method')
+                print("Plotter does not support the plot_resample method")
         else:
             return xf
 
     def fstar_analysis(
         self,
         TSKIP_LIST,
-        aic_type='aic',
+        aic_type="aic",
         aic_Kmin_corrfactor=1.0,
         manual_cutoffK=None,
         plot=True,
@@ -807,9 +729,18 @@ class Current(MDSample, abc.ABC):
     ):  # yapf: disable
         from sportran.current.tools.fstar_analysis import fstar_analysis
 
-        return fstar_analysis(self, TSKIP_LIST, aic_type, aic_Kmin_corrfactor, manual_cutoffK, plot, axes, FIGSIZE,
-                              verbose, **plot_kwargs,
-                             )
+        return fstar_analysis(
+            self,
+            TSKIP_LIST,
+            aic_type,
+            aic_Kmin_corrfactor,
+            manual_cutoffK,
+            plot,
+            axes,
+            FIGSIZE,
+            verbose,
+            **plot_kwargs,
+        )
 
 
 ################################################################################
