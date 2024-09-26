@@ -361,51 +361,6 @@ class MaxLikeFilter:
             [runavefilter(c, window) for c in data.reshape(-1, shape[-1])]
         ).reshape(shape)
 
-    def _compute_moving_average(self, data, window):
-        """
-        Compute the moving average of the data along the first dimension.
-        If data is (N,): apply runavefilter to the log of data.
-        If data is (N, m, m): apply runavefilter to the log of the diagonal elements and the raw values for off-diagonal elements.
-        """
-        shape = data.shape
-
-        if len(shape) == 1:
-            # Case where data is (N,)
-            # Apply runavefilter to the log of data along the first dimension
-            return np.exp(runavefilter(np.log(data), window))
-
-        elif len(shape) == 3 and shape[1] == shape[2]:
-            # Case where data is (N, m, m)
-            N, m, _ = shape
-            filtered_data = np.zeros_like(data)
-
-            for i in range(m):
-                for j in range(m):
-                    if i == j:
-                        # Apply runavefilter to the log of the diagonal elements along the first dimension
-                        diag_elements = np.log(data[:, i, i])
-                        filtered_diag = runavefilter(diag_elements, window)
-                        filtered_data[:, i, i] = np.exp(
-                            filtered_diag
-                        )  # Restore the original scale
-                    else:
-                        # Apply runavefilter to the off-diagonal elements along the first dimension
-                        filtered_data[:, i, j] = runavefilter(data[:, i, j], window)
-
-            return filtered_data
-
-        else:
-            raise ValueError(f"Unsupported data shape: {shape}")
-
-    # def _compute_moving_average(self, data, window):
-    #     """
-    #     Compute the moving average of the data.
-    #     """
-    #     shape = data.shape
-    #     return np.array(
-    #         [runavefilter(c, window) for c in data.reshape(-1, shape[-1])]
-    #     ).reshape(shape)
-
     def _process_guess_data(self, guess_data, omega, omega_fixed, ell, nu):
         """
         Process guess data based on the likelihood.
