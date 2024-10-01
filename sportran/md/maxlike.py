@@ -40,6 +40,7 @@ class MaxLikeFilter:
         solver=None,
         omega_fixed=None,
         ext_guess=None,
+        alpha=10 ** (np.linspace(-10, -5, 10000))
     ):
         """
         Initialize the MaxLikeFilter class with the provided parameters.
@@ -48,6 +49,7 @@ class MaxLikeFilter:
 
         self.data = data
         self.model = model
+        self.alpha = alpha
         self.n_parameters = n_parameters
         self.n_components = n_components
         self.n_currents = n_currents
@@ -437,8 +439,6 @@ class MaxLikeFilter:
             """
 
             samples = generate_samples_mc_alpha(res.x, res.hess_inv)
-
-            self.alpha = 10 ** (np.linspace(-10, -5, 10000))
 
             dic_alpha = reweight_logev_alpha_vec(alpha=self.alpha, samples=samples)
 
