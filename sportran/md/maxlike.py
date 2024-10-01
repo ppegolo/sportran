@@ -418,6 +418,15 @@ class MaxLikeFilter:
 
         self._store_optimization_results(res, write_log)
 
+    def _optimize_alpha(self, res):
+        samples = generate_samples_mc_alpha(res.x, res.hess_inv)
+
+        dic_alpha = reweight_logev_alpha_vec(alpha=self.alpha, samples=samples)
+
+        parameters_mean, parameters_cov = reweight_alpha(alpha=dic_alpha['alpha_s'], samples=samples)
+
+        return dic_alpha, parameters_mean, parameters_cov
+
     def _store_optimization_results(self, res, write_log):
         """
         Store the results of the optimization.
@@ -438,14 +447,9 @@ class MaxLikeFilter:
             the posterior at alpha=0: see  reweight_alpha and reweight_logev_alpha_vec.
             """
 
-            samples = generate_samples_mc_alpha(res.x, res.hess_inv)
-
-            dic_alpha = reweight_logev_alpha_vec(alpha=self.alpha, samples=samples)
-
-            self.parameters_mean, self.parameters_cov = reweight_alpha(alpha=dic_alpha['alpha_s'], samples=samples)
+            self.best_alpha, self.parameters_mean, self.parameters_cov = self._optimize_alpha(res=res)
 
             self.parameters_std = np.sqrt(self.parameters_cov.diagonal())
-            self.best_alpha = dic_alpha
         else:
             if write_log:
                 log.write_log(
