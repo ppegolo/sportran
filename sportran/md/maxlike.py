@@ -40,7 +40,7 @@ class MaxLikeFilter:
         solver=None,
         omega_fixed=None,
         ext_guess=None,
-        alpha=10 ** (np.linspace(-10, -5, 10000))
+        alpha=10 ** (np.linspace(-10, -5, 10000)),
     ):
         """
         Initialize the MaxLikeFilter class with the provided parameters.
@@ -419,12 +419,20 @@ class MaxLikeFilter:
         self._store_optimization_results(res, write_log)
 
     def _optimize_alpha(self, res):
+        """
+        Assume a gaussian prior (alpha/pi)**(P/2) e**(-alpha*||w||**2) and maximize
+        the marginal distribution of alpha. We sample the posterior distribution
+        assuming it is Gaussian
+        (see https://en.wikipedia.org/wiki/Bernstein–von_Mises_theorem)
+        and compute p(D|alpha) reweighting the posterior at alpha=0: see
+        reweight_alpha and reweight_logev_alpha_vec.
+        """
+
         samples = generate_samples_mc_alpha(res.x, res.hess_inv)
-
         dic_alpha = reweight_logev_alpha_vec(alpha=self.alpha, samples=samples)
-
-        parameters_mean, parameters_cov = reweight_alpha(alpha=dic_alpha['alpha_s'], samples=samples)
-
+        parameters_mean, parameters_cov = reweight_alpha(
+            alpha=dic_alpha["alpha_s"], samples=samples
+        )
         return dic_alpha, parameters_mean, parameters_cov
 
     def _store_optimization_results(self, res, write_log):
@@ -440,14 +448,9 @@ class MaxLikeFilter:
                     "Covariance matrix estimated through Laplace approximation."
                 )
 
-            """
-            Assume a gaussian prior (alpha/pi)**(P/2) e**(-alpha*||w||**2) and maximize the marginal distribution 
-            of alpha. We sample the posterior distribution assuming it is Gaussian 
-            (see https://en.wikipedia.org/wiki/Bernstein–von_Mises_theorem) and compute p(D|alpha) reweighting 
-            the posterior at alpha=0: see  reweight_alpha and reweight_logev_alpha_vec.
-            """
-
-            self.best_alpha, self.parameters_mean, self.parameters_cov = self._optimize_alpha(res=res)
+            self.best_alpha, self.parameters_mean, self.parameters_cov = (
+                self._optimize_alpha(res=res)
+            )
 
             self.parameters_std = np.sqrt(self.parameters_cov.diagonal())
         else:
@@ -622,40 +625,51 @@ def scale_matrix_std_mc(model, w, omega, omega_fixed, n, cov_w, size=1000):
 
 
 def reweight_logev_alpha_vec(samples, alpha):
-    '''
+    """
     samples: shape is (N, P): N number of samples, P number of parameters
     array: array of alpha to test
-    '''
+    """
     M = samples.shape[1]
-    truth_mean = np.log(np.mean(np.exp(- alpha[:, None] * np.linalg.norm(samples, axis=1) ** 2), axis=1)) +\
-                 M / 2 * np.log(alpha * 2 / np.pi)
+    truth_mean = np.log(
+        np.mean(np.exp(-alpha[:, None] * np.linalg.norm(samples, axis=1) ** 2), axis=1)
+    ) + M / 2 * np.log(alpha * 2 / np.pi)
     dic_alpha = {}
-    dic_alpha['lev_s'] = truth_mean
-    dic_alpha['alpha_s'] = alpha[np.argmax(dic_alpha['lev_s'])]
-
+    dic_alpha["lev_s"] = truth_mean
+    dic_alpha["alpha_s"] = alpha[np.argmax(dic_alpha["lev_s"])]
 
     return dic_alpha
 
+
 def reweight_alpha(alpha, samples):
-    '''
+    """
     samples: shape is (N, P): N number of samples, P number of parameters
     array: scalar
-    '''
-    truth_mean = np.mean(samples.T[:, :] * np.exp(- alpha * np.linalg.norm(samples, axis=1) ** 2), axis=1) / \
-                 np.mean(np.exp(- alpha * np.linalg.norm(samples, axis=1) ** 2), axis=0)
-    truth_cov = np.mean(samples.T[:, None, :] * samples.T[None, :, :] *
-                        np.exp(- alpha * np.linalg.norm(samples, axis=1) ** 2), axis=- 1) /\
-                np.mean(np.exp(- alpha * np.linalg.norm(samples, axis=1) ** 2), axis=0) - \
-                truth_mean[:, None]*truth_mean[None, :]
+    """
+    truth_mean = np.mean(
+        samples.T[:, :] * np.exp(-alpha * np.linalg.norm(samples, axis=1) ** 2), axis=1
+    ) / np.mean(np.exp(-alpha * np.linalg.norm(samples, axis=1) ** 2), axis=0)
+    truth_cov = (
+        np.mean(
+            samples.T[:, None, :]
+            * samples.T[None, :, :]
+            * np.exp(-alpha * np.linalg.norm(samples, axis=1) ** 2),
+            axis=-1,
+        )
+        / np.mean(np.exp(-alpha * np.linalg.norm(samples, axis=1) ** 2), axis=0)
+        - truth_mean[:, None] * truth_mean[None, :]
+    )
 
     return truth_mean, truth_cov
 
+
 def generate_samples_mc_alpha(w, cov_w, size=1000):
-    '''
+    """
     samples shape is (N, P): N number of samples, P number of parameters
     w: parameters mean as estimated by self.maxlike
     cov_w: array PxP
-    '''
-    sample = w + np.random.multivariate_normal(mean=np.zeros_like(w), cov=cov_w, size=size)
+    """
+    sample = w + np.random.multivariate_normal(
+        mean=np.zeros_like(w), cov=cov_w, size=size
+    )
 
     return sample
