@@ -420,7 +420,7 @@ class MaxLikeFilter:
         """
         Store the results of the optimization.
         """
-        self.parameters_mean = res.x
+
         if hasattr(res, "hess_inv"):
             cov = res.hess_inv
             if write_log:
@@ -428,18 +428,35 @@ class MaxLikeFilter:
                     f"The {self.solver} solver provides Hessian. "
                     "Covariance matrix estimated through Laplace approximation."
                 )
-            self.parameters_cov = cov
-            self.parameters_std = np.sqrt(cov.diagonal())
+
+            """
+            Assume a gaussian prior (alpha/pi)**(P/2) e**(-alpha*||w||**2) and maximize the marginal distribution 
+            of alpha. We sample the posterior distribution assuming it is Gaussian 
+            (see https://en.wikipedia.org/wiki/Bernstein–von_Mises_theorem) and compute p(D|alpha) reweighting 
+            the posterior at alpha=0: see  reweight_alpha and reweight_logev_alpha_vec.
+            """
+
+            samples = generate_samples_mc_alpha(res.x, res.hess_inv)
+
+            self.alpha = 10 ** (np.linspace(-10, -5, 10000))
+
+            dic_alpha = reweight_logev_alpha_vec(alpha=self.alpha, samples=samples)
+
+            self.parameters_mean, self.parameters_cov = reweight_alpha(alpha=dic_alpha['alpha_s'], samples=samples)
+
+            self.parameters_std = np.sqrt(self.parameters_cov.diagonal())
+            self.best_alpha = dic_alpha
         else:
             if write_log:
                 log.write_log(
                     f"The {self.solver} solver does not provide Hessian. No covariance matrix output."
                 )
+            self.parameters_mean = res.x
             self.parameters_std = None
 
         self.optimizer_res = res
         self.log_likelihood_value = -self.log_like(
-            res.x,
+            self.parameters_mean,
             self.model,
             self.omega,
             self.omega_fixed,
@@ -598,3 +615,43 @@ def scale_matrix_std_mc(model, w, omega, omega_fixed, n, cov_w, size=1000):
     )
     S_std = sample_S.std(axis=0)
     return S_std
+
+
+def reweight_logev_alpha_vec(samples, alpha):
+    '''
+    samples: shape is (N, P): N number of samples, P number of parameters
+    array: array of alpha to test
+    '''
+    M = samples.shape[1]
+    truth_mean = np.log(np.mean(np.exp(- alpha[:, None] * np.linalg.norm(samples, axis=1) ** 2), axis=1)) +\
+                 M / 2 * np.log(alpha * 2 / np.pi)
+    dic_alpha = {}
+    dic_alpha['lev_s'] = truth_mean
+    dic_alpha['alpha_s'] = alpha[np.argmax(dic_alpha['lev_s'])]
+
+
+    return dic_alpha
+
+def reweight_alpha(alpha, samples):
+    '''
+    samples: shape is (N, P): N number of samples, P number of parameters
+    array: scalar
+    '''
+    truth_mean = np.mean(samples.T[:, :] * np.exp(- alpha * np.linalg.norm(samples, axis=1) ** 2), axis=1) / \
+                 np.mean(np.exp(- alpha * np.linalg.norm(samples, axis=1) ** 2), axis=0)
+    truth_cov = np.mean(samples.T[:, None, :] * samples.T[None, :, :] *
+                        np.exp(- alpha * np.linalg.norm(samples, axis=1) ** 2), axis=- 1) /\
+                np.mean(np.exp(- alpha * np.linalg.norm(samples, axis=1) ** 2), axis=0) - \
+                truth_mean[:, None]*truth_mean[None, :]
+
+    return truth_mean, truth_cov
+
+def generate_samples_mc_alpha(w, cov_w, size=1000):
+    '''
+    samples shape is (N, P): N number of samples, P number of parameters
+    w: parameters mean as estimated by self.maxlike
+    cov_w: array PxP
+    '''
+    sample = w + np.random.multivariate_normal(mean=np.zeros_like(w), cov=cov_w, size=size)
+
+    return sample
