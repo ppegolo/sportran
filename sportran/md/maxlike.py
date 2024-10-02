@@ -64,6 +64,7 @@ class MaxLikeFilter:
         # Store optimization results
         self.parameters_mean = None
         self.parameters_std = None
+        self.parameters_cov = None
         self.optimizer_res = None
         self.log_likelihood_value = None
         self.aic_values = None
@@ -303,6 +304,7 @@ class MaxLikeFilter:
                 self.optimal_nparameters = n_par
                 self.best_parameters_mean = self.parameters_mean.copy()
                 self.best_parameters_std = self.parameters_std.copy()
+                self.best_parameters_cov = self.parameters_cov.copy()
                 self.best_omega_fixed = self.omega_fixed.copy()
                 self.best_log_likelihood_value = self.log_likelihood_value
                 _steps_since_last_aic_update = 0
@@ -322,6 +324,7 @@ class MaxLikeFilter:
         self.n_parameters = self.optimal_nparameters
         self.parameters_mean = self.best_parameters_mean
         self.parameters_std = self.best_parameters_std
+        self.parameters_cov = self.best_parameters_cov
         self.omega_fixed = self.best_omega_fixed
         self.log_likelihood_value = self.best_log_likelihood_value
 
@@ -451,6 +454,7 @@ class MaxLikeFilter:
             self.best_alpha, self.parameters_mean, self.parameters_cov = (
                 self._optimize_alpha(res=res)
             )
+            print("in _store", self.parameters_mean.shape, self.parameters_cov.shape)
 
             self.parameters_std = np.sqrt(self.parameters_cov.diagonal())
         else:
@@ -460,6 +464,7 @@ class MaxLikeFilter:
                 )
             self.parameters_mean = res.x
             self.parameters_std = None
+            self.parameters_cov = None
 
         self.optimizer_res = res
         self.log_likelihood_value = -self.log_like(
