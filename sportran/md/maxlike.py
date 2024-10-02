@@ -637,6 +637,7 @@ def reweight_logev_alpha_vec(samples, alpha):
     M = samples.shape[1]
     truth_mean = np.log(
         np.mean(np.exp(-alpha[:, None] * np.linalg.norm(samples, axis=1) ** 2), axis=1)
+        + 1e-300  # add small epsilon to avoid underflow
     ) + M / 2 * np.log(alpha * 2 / np.pi)
     dic_alpha = {}
     dic_alpha["lev_s"] = truth_mean
