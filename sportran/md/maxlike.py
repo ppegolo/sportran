@@ -40,7 +40,7 @@ class MaxLikeFilter:
         solver=None,
         omega_fixed=None,
         ext_guess=None,
-        alpha=10 ** (np.linspace(-10, 3, 10000)),
+        alpha=10 ** (np.linspace(-10, -5, 10000)),
     ):
         """
         Initialize the MaxLikeFilter class with the provided parameters.
@@ -432,7 +432,7 @@ class MaxLikeFilter:
         """
 
         samples = generate_samples_mc_alpha(res.x, res.hess_inv)
-        dic_alpha, self.alpha_plot = reweight_logev_alpha_vec(alpha=self.alpha, samples=samples)
+        dic_alpha = reweight_logev_alpha_vec(alpha=self.alpha, samples=samples)
         parameters_mean, parameters_cov = reweight_alpha(
             alpha=dic_alpha["alpha_s"], samples=samples
         )
@@ -635,17 +635,15 @@ def reweight_logev_alpha_vec(samples, alpha):
     array: array of alpha to test
     """
     M = samples.shape[1]
-
-    means=np.mean(np.exp(-alpha[:, None] * np.linalg.norm(samples, axis=1) ** 2), axis=1)
-
-    l = np.where(means > 1e-300)[0]
-
-    truth_mean = np.log(means[l]) + M / 2 * np.log(alpha[l] * 2 / np.pi)
+    truth_mean = np.log(
+        np.mean(np.exp(-alpha[:, None] * np.linalg.norm(samples, axis=1) ** 2), axis=1)
+        + 1e-300  # add small epsilon to avoid underflow
+    ) + M / 2 * np.log(alpha * 2 / np.pi)
     dic_alpha = {}
     dic_alpha["lev_s"] = truth_mean
-    dic_alpha["alpha_s"] = alpha[l][np.argmax(dic_alpha["lev_s"])]
+    dic_alpha["alpha_s"] = alpha[np.argmax(dic_alpha["lev_s"])]
 
-    return dic_alpha, alpha[l]
+    return dic_alpha
 
 
 def reweight_alpha(alpha, samples):
