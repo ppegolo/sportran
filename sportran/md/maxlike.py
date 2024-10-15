@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import scipy.special as sp
-from scipy.special import multigammaln
+
+# from scipy.special import multigammaln
 from scipy.optimize import minimize
 from scipy.linalg import cholesky
 import opt_einsum
@@ -24,7 +25,11 @@ class MaxLikeFilter:
     - n_parameters: Number of parameters for the fit or 'AIC' for automatic selection.
     - n_components: Number of independent samples the data is generated from.
     - n_currents: Number of independent flux types.
-    - likelihood: Type of likelihood function to use ('wishart', 'chisquare', 'variancegamma').
+    - likelihood: Type of likelihood function to use (
+                                                        'wishart',
+                                                        'chisquare',
+                                                        'variancegamma'
+                                                      ).
     - solver: Optimization solver (e.g., 'BFGS').
     - omega_fixed: Fixed frequencies for the model nodes.
     """
@@ -40,6 +45,7 @@ class MaxLikeFilter:
         solver=None,
         omega_fixed=None,
         ext_guess=None,
+        alpha=10 ** (np.linspace(-10, -3, 10000)),
         alpha=10 ** (np.linspace(-10, 2, 10000)),
     ):
         """
@@ -120,11 +126,15 @@ class MaxLikeFilter:
         omega_fixed=None,
         write_log=True,
         minimize_kwargs=None,
+        limits=None,
     ):
         """
         Perform the maximum-likelihood estimation.
         """
         minimize_kwargs = minimize_kwargs or {}
+
+        # FIXME
+        self.limits = limits
 
         # Update instance variables if provided
         self._update_parameters(
@@ -239,7 +249,10 @@ class MaxLikeFilter:
                 n_parameters.dtype, np.integer
             ), "`n_parameters` must be an integer array-like"
             log.write_log(
-                f"Optimal number of parameters between {n_parameters.min()} and {n_parameters.max()} chosen by AIC"
+                (
+                    f"Optimal number of parameters between {n_parameters.min()} "
+                    f"and {n_parameters.max()} chosen by AIC"
+                )
             )
             return n_parameters
         elif isinstance(n_parameters, str) and n_parameters.lower() == "aic":
@@ -268,6 +281,7 @@ class MaxLikeFilter:
                 self.n_currents,
                 window=guess_runave_window,
             )
+
         # Perform optimization
         self._optimize_parameters(guess_data, minimize_kwargs, write_log)
 
@@ -275,7 +289,8 @@ class MaxLikeFilter:
         self, n_parameters_list, guess_runave_window, minimize_kwargs, write_log
     ):
         """
-        Run maximum likelihood estimation over a range of parameters and choose the best one with AIC.
+        Run maximum likelihood estimation over a range of parameters and choose the best
+        one with AIC.
         """
         _aic = []
         _aic_max = -np.inf
@@ -294,7 +309,7 @@ class MaxLikeFilter:
                 self.n_currents,
                 window=guess_runave_window,
             )
-            # self.data = np.moveaxis(self.data, -1, 0)
+
             self._optimize_parameters(guess_data, minimize_kwargs, write_log=False)
             _new_aic = self.log_likelihood_value - n_par
             _aic.append(_new_aic)
@@ -316,7 +331,10 @@ class MaxLikeFilter:
 
             if write_log:
                 log.write_log(
-                    f"AIC: {_new_aic}; Steps since last AIC update: {_steps_since_last_aic_update}"
+                    (
+                        f"AIC: {_new_aic}; Steps since last AIC "
+                        f"update: {_steps_since_last_aic_update}"
+                    )
                 )
 
         self.aic_values = np.array(_aic)
@@ -377,6 +395,8 @@ class MaxLikeFilter:
 
         if self.log_like == self.log_likelihood_wishart:
             guess_data = self._process_wishart_guess_data(guess_data, nu)
+        elif self.log_like == self.log_likelihood_diag:
+            guess_data = np.log(guess_data)
 
         return guess_data.flatten()
 
@@ -404,6 +424,8 @@ class MaxLikeFilter:
         """
         Perform the optimization to find the parameters that maximize the likelihood.
         """
+
+        self._used_guess_data = guess_data, self.data
         res = minimize(
             fun=self.log_like,
             x0=guess_data,
@@ -415,10 +437,10 @@ class MaxLikeFilter:
                 self.n_currents,
                 self.n_components,
             ),
+            bounds=self.limits,
             method=self.solver,
             **(minimize_kwargs or {}),
         )
-
         self._store_optimization_results(res, write_log)
 
     def _optimize_alpha(self, res):
@@ -431,11 +453,22 @@ class MaxLikeFilter:
         reweight_alpha and reweight_logev_alpha_vec.
         """
 
+        w = res.x
+
+        cov = res.hess_inv
+        if self.solver == "L-BFGS-B":
+            cov = cov.todense()
+
+        samples = generate_samples_mc_alpha(w, cov)
+        dic_alpha = reweight_logev_alpha_vec(alpha=self.alpha, samples=samples)
         samples = generate_samples_mc_alpha(res.x, res.hess_inv)
-        dic_alpha, self.alpha_plot = reweight_logev_alpha_vec(alpha=self.alpha, samples=samples)
+        dic_alpha, self.alpha_plot = reweight_logev_alpha_vec(
+            alpha=self.alpha, samples=samples
+        )
         parameters_mean, parameters_cov = reweight_alpha(
             alpha=dic_alpha["alpha_s"], samples=samples
         )
+
         return dic_alpha, parameters_mean, parameters_cov
 
     def _store_optimization_results(self, res, write_log):
@@ -444,23 +477,31 @@ class MaxLikeFilter:
         """
 
         if hasattr(res, "hess_inv"):
-            cov = res.hess_inv
             if write_log:
                 log.write_log(
                     f"The {self.solver} solver provides Hessian. "
                     "Covariance matrix estimated through Laplace approximation."
                 )
 
-            self.best_alpha, self.parameters_mean, self.parameters_cov = (
-                self._optimize_alpha(res=res)
-            )
-            print("in _store", self.parameters_mean.shape, self.parameters_cov.shape)
+            # self.best_alpha, self.parameters_mean, self.parameters_cov = (
+            #     self._optimize_alpha(res=res)
+            # )
 
-            self.parameters_std = np.sqrt(self.parameters_cov.diagonal())
+            try:
+                cov = res.hess_inv.todense()
+            except AttributeError:
+                cov = res.hess_inv
+            self.parameters_cov = cov
+
+            self.parameters_mean = res.x
+            self.parameters_std = np.sqrt(np.abs(self.parameters_cov.diagonal()))
         else:
             if write_log:
                 log.write_log(
-                    f"The {self.solver} solver does not provide Hessian. No covariance matrix output."
+                    (
+                        f"The {self.solver} solver does not provide Hessian. "
+                        "No covariance matrix output."
+                    )
                 )
             self.parameters_mean = res.x
             self.parameters_std = None
@@ -468,7 +509,8 @@ class MaxLikeFilter:
 
         self.optimizer_res = res
         self.log_likelihood_value = -self.log_like(
-            self.parameters_mean,
+            # self.parameters_mean,
+            res.x,
             self.model,
             self.omega,
             self.omega_fixed,
@@ -505,19 +547,29 @@ class MaxLikeFilter:
 
         return -np.sum(log_pdf)
 
-    def log_likelihood_diag(self, w, model, omega, omega_fixed, data_, nu, ell):
+    def log_likelihood_diag(self, w, model, omega, omega_fixed, data, M, ell):
         """
         Negative of the logarithm of the Chi-squared probability density function.
+
+        :param array like: data is the PSD
+        :param int: nu is the number of thermodynamically independent fluxes (usally
+                    useful for thermal transport)
         """
+
+        # Number of degrees of freedom
+        dof = int(ell - M + 1)
+
+        # Model for the spectrum
         spline = model(omega_fixed, w)
-        spectrum = 2 * spline(omega)
-        dof = 2 * (ell - nu + 1)
-        z = np.abs(dof * data_ / spectrum)  # This is chi-squared distributed
+        spectrum = np.exp(spline(omega))
 
-        logz = np.log(z)
-        log_pdf = 0.5 * ((2 - dof) * logz + z)  # negative log pdf (plus constants)
+        # Log-likelihood of data = spectrum * chi^2(dof) / dof
+        log_pdf = 0.5 * (
+            np.log(data ** (dof - 2) / spectrum**dof) - dof * data / spectrum
+        )
 
-        return np.sum(log_pdf)
+        # Return the negative log-likelihood
+        return -np.sum(log_pdf)
 
     def log_likelihood_offdiag(self, w, model, omega, omega_fixed, data_, nu, ell):
         """
@@ -547,7 +599,7 @@ class MaxLikeFilter:
         """
         omega_fixed = self.omega_fixed
         params = self.parameters_mean
-        params_std = self.parameters_std
+        params_cov = self.parameters_cov
         omega = self.omega
 
         if self.log_like == self.log_likelihood_wishart:
@@ -570,22 +622,17 @@ class MaxLikeFilter:
             )
         else:
             _NLL_spline = self.model(omega_fixed, params)
-            factor = 1
-            # factor = self.n_currents**3 * self.n_components**-2.5
-            # factor = self.n_components / self.n_currents
-            # factor = 1 / (self.n_components ** (-4.5) * self.n_currents**3)
-            # factor *= (
-            # np.sqrt(self.n_components) / self.n_currents / np.sqrt(2)
-            # )  # Adjust this factor as needed
-            print("factor", factor)
-            self.NLL_mean = _NLL_spline(omega) * factor
+            self.NLL_mean = np.exp(_NLL_spline(omega))
+
             try:
-                _NLL_spline_upper = self.model(omega_fixed, params + params_std)
-                _NLL_spline_lower = self.model(omega_fixed, params - params_std)
-                self.NLL_std = (
-                    _NLL_spline_upper(omega) - _NLL_spline_lower(omega)
-                ) * factor
+                err = np.random.multivariate_normal(
+                    np.zeros(params_cov.shape[0]), params_cov, size=1000
+                )
+                samples = [self.model(omega_fixed, params + e)(omega) for e in err]
+                self.NLL_std = np.std([np.exp(s) for s in samples], axis=0)
             except TypeError:
+                pass
+            except AttributeError:
                 pass
 
     def __repr__(self):
@@ -635,11 +682,11 @@ def reweight_logev_alpha_vec(samples, alpha):
     array: array of alpha to test
     """
     M = samples.shape[1]
-    means=np.mean(np.exp(-alpha[:, None] * np.linalg.norm(samples, axis=1) ** 2), axis=1)
-    l=np.where(means>1e-300)[0]
-    truth_mean = np.log(
-        means[l]
-    ) + M / 2 * np.log(alpha[l] * 2 / np.pi)
+    means = np.mean(
+        np.exp(-alpha[:, None] * np.linalg.norm(samples, axis=1) ** 2), axis=1
+    )
+    l = np.where(means > 1e-300)[0]
+    truth_mean = np.log(means[l]) + M / 2 * np.log(alpha[l] * 2 / np.pi)
     dic_alpha = {}
     dic_alpha["lev_s"] = truth_mean
     dic_alpha["alpha_s"] = alpha[np.argmax(dic_alpha["lev_s"])]
@@ -650,23 +697,73 @@ def reweight_logev_alpha_vec(samples, alpha):
 def reweight_alpha(alpha, samples):
     """
     samples: shape is (N, P): N number of samples, P number of parameters
-    array: scalar
+    alpha: scalar
     """
-    truth_mean = np.mean(
-        samples.T[:, :] * np.exp(-alpha * np.linalg.norm(samples, axis=1) ** 2), axis=1
-    ) / np.mean(np.exp(-alpha * np.linalg.norm(samples, axis=1) ** 2), axis=0)
+    # Compute the squared norms
+    norm_samples = np.linalg.norm(samples, axis=1) ** 2
+
+    # Use log-sum-exp trick to prevent underflow in the exponential terms
+    max_exp_term = np.max(-alpha * norm_samples)
+
+    exp_term = np.exp(-alpha * norm_samples - max_exp_term)
+
+    # Weight denominator
+    weight_denominator = np.mean(exp_term, axis=0)
+
+    # Compute the weighted mean
+    truth_mean = (
+        np.mean(
+            samples.T[:, :] * exp_term,
+            axis=1,
+        )
+    ) / weight_denominator
+
+    # Compute the weighted covariance with log-sum-exp normalization
+    weighted_samples = samples.T[:, None, :] * samples.T[None, :, :]
+
+    # Adjust the covariance by scaling with the exponential
     truth_cov = (
         np.mean(
-            samples.T[:, None, :]
-            * samples.T[None, :, :]
-            * np.exp(-alpha * np.linalg.norm(samples, axis=1) ** 2),
+            weighted_samples * exp_term,
             axis=-1,
         )
-        / np.mean(np.exp(-alpha * np.linalg.norm(samples, axis=1) ** 2), axis=0)
-        - truth_mean[:, None] * truth_mean[None, :]
-    )
+    ) / weight_denominator
+
+    # Subtract the outer product of the means
+    truth_cov = truth_cov - np.outer(truth_mean, truth_mean)
 
     return truth_mean, truth_cov
+
+
+# def reweight_alpha(alpha, samples):
+#     """
+#     samples: shape is (N, P): N number of samples, P number of parameters
+#     array: scalar
+#     """
+#     truth_mean = (
+#         np.mean(
+#             samples.T[:, :] * np.exp(-alpha * np.linalg.norm(samples, axis=1) ** 2),
+#             axis=1,
+#         )
+#     ) / (np.mean(np.exp(-alpha * np.linalg.norm(samples, axis=1) ** 2), axis=0))
+#     print("truth_mean", truth_mean)
+
+#     truth_cov = (
+#         np.mean(
+#             samples.T[:, None, :]
+#             * samples.T[None, :, :]
+#             * np.exp(-alpha * np.linalg.norm(samples, axis=1) ** 2),
+#             axis=-1,
+#         )
+#     ) / (
+#         np.mean(np.exp(-alpha * np.linalg.norm(samples, axis=1) ** 2), axis=0)
+#     ) - truth_mean[
+#         :, None
+#     ] * truth_mean[
+#         None, :
+#     ]
+
+#     return truth_mean, truth_cov
 
 
 def generate_samples_mc_alpha(w, cov_w, size=1000):
@@ -675,6 +772,7 @@ def generate_samples_mc_alpha(w, cov_w, size=1000):
     w: parameters mean as estimated by self.maxlike
     cov_w: array PxP
     """
+
     sample = w + np.random.multivariate_normal(
         mean=np.zeros_like(w), cov=cov_w, size=size
     )

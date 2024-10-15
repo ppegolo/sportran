@@ -12,12 +12,11 @@ from sportran.md.cepstral import CepstralFilter, multicomp_cepstral_parameters
 from sportran.md.bayes import BayesFilter
 from sportran.md.maxlike import MaxLikeFilter
 from sportran.md.tools.filter import runavefilter
-from sportran.md.tools.spectrum import freq_THz_to_red, freq_red_to_THz
+from sportran.md.tools.spectrum import freq_red_to_THz
 from . import units
 from sportran.utils import log
 from sportran.plotter.current import CurrentPlotter
 import warnings
-from copy import deepcopy
 
 __all__ = ["Current"]
 
@@ -499,6 +498,8 @@ class Current(MDSample, abc.ABC):
         guess_runave_window=50,
         minimize_kwargs=None,
         ext_guess=None,
+        limits=[0, 1],
+        omega_fixed=None,
     ):
         """
         Perform maximum likelihood estimation and optionally select the optimal number of parameters using AIC.
@@ -517,6 +518,7 @@ class Current(MDSample, abc.ABC):
             likelihood=likelihood,
             solver=solver,
             ext_guess=ext_guess,
+            omega_fixed=omega_fixed,
         )
 
         # Run the maximum likelihood estimation
@@ -525,14 +527,19 @@ class Current(MDSample, abc.ABC):
             mask=mask,
             guess_runave_window=guess_runave_window,
             minimize_kwargs=minimize_kwargs,
+            limits=limits,
         )
 
         # Extract and scale results
         self.maxlike.extract_and_scale_results()
 
         # Access the results from self.maxlike
-        self.NLL_mean = self.maxlike.NLL_mean
-        self.NLL_std = self.maxlike.NLL_std
+        self.NLL_mean = self.maxlike.NLL_mean[0]
+        self.NLL_std = None
+        try:
+            self.NLL_std = self.maxlike.NLL_std[0]
+        except AttributeError:
+            pass
         # self.NLL_upper = getattr(self.maxlike, "NLL_upper", None)
         # self.NLL_lower = getattr(self.maxlike, "NLL_lower", None)
 
@@ -560,20 +567,24 @@ class Current(MDSample, abc.ABC):
             # Iterate over the upper triangle (including the diagonal)
             for i in range(self.N_CURRENTS):
                 for j in range(i, self.N_CURRENTS):
-                    mean_val = self.NLL_mean[0, i, j]
-                    std_val = self.NLL_std[0, i, j]
+                    mean_val = self.NLL_mean[i, j]
+                    std_val = self.NLL_std[i, j]
 
                     self.mle_log += (
                         f"  S_{{{i}{j}}} = {mean_val:18f} +/- {std_val:10f}\n"
                     )
         else:
-            mean_val = self.NLL_mean[0] * self.KAPPA_SCALE / 2
-            std_val = self.NLL_std[0] * self.KAPPA_SCALE / 2
+            mean_val = self.NLL_mean * self.KAPPA_SCALE / 2
+            try:
+                std_val = self.NLL_std * self.KAPPA_SCALE / 2
+            except TypeError:
+                std_val = 0
 
             self.mle_log += "  kappa* = {:18f} +/- {:10f}  {}\n".format(
                 mean_val, std_val, self._KAPPA_SI_UNITS
             )
-            # self.mle_log += f"  S_{{{i}{j}}} = {mean_val:18f} +/- {std_val:10f}\n"
+            self.NLL_mean = mean_val
+            self.NLL_std = std_val
 
         self.mle_log += "-----------------------------------------------------\n"
 
@@ -587,9 +598,7 @@ class Current(MDSample, abc.ABC):
         if likelihood == "wishart":
             return self.cospectrum.real * self.N_CURRENTS
         elif likelihood in ["chisquare", "chisquared"]:
-            return (
-                self.psd  # * 2 * self.ndf_chi
-            )  # now the distribution of data is S*chisquare(dof=2*(ell-M+1))
+            return self.psd
         elif likelihood in ["variancegamma", "variance-gamma"]:
             return self.cospectrum.real[0, 1]  # * self.N_CURRENTS
         else:
