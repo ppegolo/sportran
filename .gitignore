@@ -122,3 +122,7 @@ examples/data_manager/gpumd/thermo.out
 examples/data_manager/lammps/config.lammpsdata
 examples/data_manager/lammps/dump.sample.lammpstrj
 examples/data_manager/lammps/sample.lammps
+examples/07_example_negative_log_likelihood copy.ipynb
+examples/08_example_optimize_prior .ipynb
+examples/stress_flux_hacked.npy
+sportran/md/maxlike copy.py
