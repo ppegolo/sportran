@@ -46,7 +46,6 @@ class MaxLikeFilter:
         omega_fixed=None,
         ext_guess=None,
         alpha=10 ** (np.linspace(-10, -3, 10000)),
-        alpha=10 ** (np.linspace(-10, 2, 10000)),
     ):
         """
         Initialize the MaxLikeFilter class with the provided parameters.
@@ -460,8 +459,6 @@ class MaxLikeFilter:
             cov = cov.todense()
 
         samples = generate_samples_mc_alpha(w, cov)
-        dic_alpha = reweight_logev_alpha_vec(alpha=self.alpha, samples=samples)
-        samples = generate_samples_mc_alpha(res.x, res.hess_inv)
         dic_alpha, self.alpha_plot = reweight_logev_alpha_vec(
             alpha=self.alpha, samples=samples
         )
@@ -483,9 +480,9 @@ class MaxLikeFilter:
                     "Covariance matrix estimated through Laplace approximation."
                 )
 
-            # self.best_alpha, self.parameters_mean, self.parameters_cov = (
-            #     self._optimize_alpha(res=res)
-            # )
+            self.best_alpha, self.parameters_mean, self.parameters_cov = (
+                self._optimize_alpha(res=res)
+            )
 
             try:
                 cov = res.hess_inv.todense()
@@ -509,7 +506,6 @@ class MaxLikeFilter:
 
         self.optimizer_res = res
         self.log_likelihood_value = -self.log_like(
-            # self.parameters_mean,
             res.x,
             self.model,
             self.omega,
@@ -733,37 +729,6 @@ def reweight_alpha(alpha, samples):
     truth_cov = truth_cov - np.outer(truth_mean, truth_mean)
 
     return truth_mean, truth_cov
-
-
-# def reweight_alpha(alpha, samples):
-#     """
-#     samples: shape is (N, P): N number of samples, P number of parameters
-#     array: scalar
-#     """
-#     truth_mean = (
-#         np.mean(
-#             samples.T[:, :] * np.exp(-alpha * np.linalg.norm(samples, axis=1) ** 2),
-#             axis=1,
-#         )
-#     ) / (np.mean(np.exp(-alpha * np.linalg.norm(samples, axis=1) ** 2), axis=0))
-#     print("truth_mean", truth_mean)
-
-#     truth_cov = (
-#         np.mean(
-#             samples.T[:, None, :]
-#             * samples.T[None, :, :]
-#             * np.exp(-alpha * np.linalg.norm(samples, axis=1) ** 2),
-#             axis=-1,
-#         )
-#     ) / (
-#         np.mean(np.exp(-alpha * np.linalg.norm(samples, axis=1) ** 2), axis=0)
-#     ) - truth_mean[
-#         :, None
-#     ] * truth_mean[
-#         None, :
-#     ]
-
-#     return truth_mean, truth_cov
 
 
 def generate_samples_mc_alpha(w, cov_w, size=1000):
