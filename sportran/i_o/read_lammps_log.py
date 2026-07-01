@@ -118,56 +118,29 @@ def data_length(file):
 
 class LAMMPSLogFile(object):
     """
-  A package that reads a LAMMPS Log file and organizes it into a dictionary according to the column headers.
-  LAMMPS-style vector variables header are grouped together (only if group_vector = True).
-  If the name starts with "c_" or "v_", this is stripped away.
-    e.g.    c_flux[0] c_flux[1] c_flux[2]  -->  placed in 'flux0' key
+    LAMMPS log reader organized by column headers.
 
-  The output of a specific run command is identified by a string 'run_keyword'.
-  When this keyword is found the next output block is read (it is supposed to
-  begin with a 'Step' in the first column).
-  The reading stops when and 'end_keyword' is found (default: 'Loop time').
+    LAMMPS-style vector variable headers can be grouped. Prefixes ``c_`` and
+    ``v_`` are stripped when present.
 
-  Lines are read SEQUENTIALLY with the method read_datalines.
-  If a start_step is not specified the file is read from the current position.
-  This allows one to read the file in blocks.
+    The output block is selected by ``run_keyword`` and reading stops when
+    ``endrun_keyword`` is found (default: ``'Loop time'``).
 
-#############################################################################
-  Example of LAMMPS Log file:
-
-  fix NVE all nve
-  # PRODUCTION RUN
-  run 1000
-  Per MPI rank memory allocation (min/avg/max) = 4.45 | 4.456 | 4.458 Mbytes
-  ...
-  ...
-  Step Temp TotEng Press c_flux[1] c_flux[2] c_flux[3] c_stress[1] c_stress[2]
-  0 257.6477 -1085.7346 -1944.803 -129.20254 124.70804 -200.42864 -64.236389 -134.0399
-  1 247.37505 -1085.734 -1909.333 -133.77141 124.25897 -103.27461 -61.022597 -83.17237
-  2 238.37359 -1087.9214 -1874.56 -138.58616 115.84038 -5.7728078 -58.471318 -74.51758
-  ...
-  Loop time of 110.158 on 20 procs for 400000 steps with 1728 atoms
-
-#############################################################################
-  Example script:
-     jfile = LAMMPSLogFile(data_file, run_keyword='PRODUCTION RUN')
-     jfile.read_datalines(NSTEPS=100, start_step=0, select_ckeys=['Step', 'Temp', 'flux'])
-     print(jfile.data)
-
-     # to save data into a Numpy binary file:
-     # 'lammps.data' is a LAMMPS data file containing the structure, where the cell information can be retrieved
-     jfile.save_numpy_dict('flux.npy', ['flux'], 'lammps.data')
-#############################################################################
+    Example
+    -------
+    ``jfile = LAMMPSLogFile(data_file, run_keyword='PRODUCTION RUN')``
+    ``jfile.read_datalines(NSTEPS=100, start_step=0, select_ckeys=['Step', 'Temp', 'flux'])``
+    ``jfile.save_numpy_dict('flux.npy', ['flux'], 'lammps.data')``
     """
 
     def __init__(self, data_file, run_keyword=None, select_ckeys=None, **kwargs):
         """
-        LAMMPSLogFile(data_file, run_keyword, select_ckeys, **kwargs)
+        Build a ``LAMMPSLogFile`` reader.
 
-        **kwargs:
-            endrun_keyword  [default: 'Loop time']
-            group_vectores  [default: True]
-            GUI             [default: False]
+        Keyword arguments:
+            ``endrun_keyword`` [default: ``'Loop time'``]
+            ``group_vectors`` [default: ``True``]
+            ``GUI`` [default: ``False``]
         """
 
         if not isinstance(data_file, (bytes, str)):
@@ -316,19 +289,25 @@ class LAMMPSLogFile(object):
 
     def read_datalines(self, NSTEPS=0, start_step=-1, select_ckeys=None, max_vector_dim=None, even_NSTEPS=True):
         """
-        Read NSTEPS steps of file, starting from start_step, and store only the selected ckeys.
+        Read selected keys from the log data block.
 
-        INPUT:
-          NSTEPS         -> number of steps to read (default: 0 -> reads all the file)
-          start_step  = -1 -> continue from current step (default)
-                         0 -> go to start step
-                         N -> go to N-th step
-          select_ckeys   -> an array with the column keys you want to read (see all_ckeys for a list, default: all)
-          max_vector_dim -> when reading vectors read only this number of components (None = read all components)
-          even_NSTEPS    -> round the number of steps to an even number (default: True)
+        Parameters
+        ----------
+        NSTEPS
+            Number of steps to read (``0`` reads all available steps).
+        start_step
+            ``-1`` continues from current position; ``0`` starts from beginning.
+        select_ckeys
+            Column keys to extract.
+        max_vector_dim
+            Maximum vector length to read for grouped vector variables.
+        even_NSTEPS
+            If true, retain an even number of steps.
 
-        OUTPUT:
-          data    ->  a dictionary with the selected-column steps
+        Returns
+        -------
+        dict
+            Dictionary with selected-column values.
         """
         if self._GUI:
             progbar = FloatProgress(min=0, max=100)
@@ -448,12 +427,10 @@ def save_numpy_dict(lammpslogfile_obj, out_file, select_ckeys=None, lammps_data_
 ################################################################################
 def main():
     """
-    This script extracts the desired columns from a LAMMPS Log file and saves them into a Numpyz file for later use.
+    Extract selected columns from a LAMMPS log into a NumPy file.
 
     Example:
-    start reading when "PRODUCTION RUN" is found, read "flux1" and "Press" columns from log.lammps
-    log file and structure.data data file (containing structure):
-       python read_lammps_log.py  log.lammps structure.data out.npz -k flux1 Press -d "PRODUCTION RUN"
+    ``python read_lammps_log.py log.lammps out.npz -k flux1 Press -d "PRODUCTION RUN"``
     """
 
     import argparse

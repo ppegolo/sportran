@@ -77,7 +77,8 @@ tests = [
 doc = [
     "sphinx>=7.0",
     "myst_parser>=2.0",
-    "nbsphinx>=0.9"
+    "nbsphinx>=0.9",
+    "pypandoc-binary>=1.17"
 ]
 lint = [
     "ruff>=0.6.0"

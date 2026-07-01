@@ -79,17 +79,29 @@ def plot_trajectory(x, *, axis=None, FIGSIZE=None, **plot_kwargs):
 def plot_periodogram(current, PSD_FILTER_W=None, *, freq_units='THz', freq_scale=1.0, axes=None, kappa_units=True,
                      FIGSIZE=None, mode='log', **plot_kwargs):
     """
-    Plots the current's periodogram (psd)
-    :param current:         current object to plot periodogram
-    :param PSD_FILTER_W:    width of the filtering window
-    :param freq_units:      'thz'  [THz]
-                            'red'  [omega*DT/(2*pi)]
-    :param freq_scale:      rescale red frequencies by this factor (e.g. 2 --> freq = [0, 0.25])
-    :param axes:            matplotlib.axes.Axes object (if None, create one)
-    :param kappa_units:     plot periodograms in units of kappa (default: True) - NB: log-psd not converted
-    :param FIGSIZE:         size of the plot
+    Plot the current periodogram (PSD).
 
-    :return: a matplotlib.axes.Axes object
+    Parameters
+    ----------
+    current
+        Current-like object to plot.
+    PSD_FILTER_W
+        Width of the filtering window.
+    freq_units
+        Frequency units: ``'thz'`` or ``'red'``.
+    freq_scale
+        Rescale reduced frequencies by this factor.
+    axes
+        Matplotlib axes (if ``None``, create a new pair).
+    kappa_units
+        Plot PSD in conductivity units when available.
+    FIGSIZE
+        Figure size.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        Axes used for the plot.
     """
 
     # recompute PSD if needed
@@ -380,16 +392,25 @@ def plot_fstar_analysis(currents, FSTAR_THZ_LIST, original_current=None, *, axes
 
 def plot_resample(x, xf, PSD_FILTER_W=None, *, freq_units='THz', axes=None, FIGSIZE=None, mode='log'):
     """
-    Plots the periodogram of a time series and of a filtered/resampled one for comparison.
-    :param x:               a time series object to plot
-    :param xf:              a filtered & resampled time series object
-    :param freq_units:      'thz'  [THz]
-                            'red'  [omega*DT/(2*pi)]
-    :param PSD_FILTER_W:    PSD filtering window width [chosen frequency units]
-    :param FIGSIZE:         plot figure size
+    Plot periodograms of original and filtered/resampled series.
 
-    :return:                xf: a filtered & resampled time series object
-                             axes: a matplotlib.axes.Axes object
+    Parameters
+    ----------
+    x
+        Original time-series object.
+    xf
+        Filtered and resampled time-series object.
+    freq_units
+        Frequency units: ``'thz'`` or ``'red'``.
+    PSD_FILTER_W
+        PSD filtering window width.
+    FIGSIZE
+        Figure size.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        Axes used for the comparison plot.
 
     """
     fstar_THz = xf.Nyquist_f_THz

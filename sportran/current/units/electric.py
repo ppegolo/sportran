@@ -40,9 +40,11 @@ def scale_kappa_qepw(TEMPERATURE, VOLUME):
     INPUT:
     TEMPERATURE [K]
     VOLUME      cell VOLUME [A^3]
-    Input current is in units of electrons_charge * a_0 / tau_{a.u.} . Current is EXTENSIVE.
-      a0 = 5.2918 10^{-11}m
-      tau_{a.u.} = 4.8378 10^{-17} s
+    Input current is in units of electrons_charge * a0 / tau_au. Current is
+    EXTENSIVE.
+
+    a0 = 5.2918e-11 m
+    tau_au = 4.8378e-17 s
 
     """
     return (constants.charge**2 / TEMPERATURE / constants.kB / VOLUME * 10000.0 * constants.J_PWtoMETAL**2)

@@ -4,9 +4,11 @@ import numpy as np
 
 
 def runavefilter(X, WF):
-    """Computes the running average of a numpy array over WF consecutive elements (or WF+1 if WF is even):
-            (X[i-WF/2]+...+X[i]+...+X[i+WF/2]) / WF
-    assumes that the array is "even" ( X[-i] = X[i] ) and anti-periodic (X[(N-1)+i]=X[(N-1)-i]), like a ONE-SIDED PSD.
+    """Compute a running average over ``WF`` consecutive elements.
+
+    If ``WF`` is even it is increased by one. The input array is assumed to be
+    even (``X[-i] = X[i]``) and anti-periodic (``X[(N-1)+i] = X[(N-1)-i]``),
+    as for a one-sided PSD.
     """
 
     if (WF % 2 == 0):

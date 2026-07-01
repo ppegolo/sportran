@@ -73,14 +73,14 @@ def get_natoms(filename):
 
 class LAMMPS_Dump(object):
     """
-    A LAMMPS_Dump file that can be read in blocks.
-    example:
-      traj = LAMMPS_Dump(filename, preload=False)  -->> do not preload list of steps (suggested if the file is big)
-      traj.read_timesteps(10, start_step=0, select_ckeys=['id,xu,yu,vu']) -->>   Read first 10 timesteps, only the specified columns
-      traj.read_timesteps(10, select_ckeys=['id,xu,yu,vu']) -->>   Read the next 10 timesteps, only the specified columns (DELTA_TIMESTEP is assumed)
-      traj.read_timesteps((10,30))      -->>  Read from TIMESTEP 10 to 30
-      traj.read_timesteps((10,30,2))    -->>  Read every 2 steps from TIMESTEP 10 to 30
-      print(traj.data)
+    LAMMPS dump file reader with block/timestep selection.
+
+    Example
+    -------
+    ``traj = LAMMPS_Dump(filename, preload=False)``
+    ``traj.read_timesteps(10, start_step=0, select_ckeys=['id,xu,yu,vu'])``
+    ``traj.read_timesteps((10, 30, 2))``
+    ``print(traj.data)``
     """
 
     def __init__(self, *args, **kwargs):
@@ -373,12 +373,14 @@ class LAMMPS_Dump(object):
 
     def read_timesteps(self, selection, start_step=-1, select_ckeys=None, fast_check=True):
         """
-        Read selected keys of file, within the provided range.
-        Examples:
-            read_timesteps(10, start_step=0, select_ckeys=['id,xu,yu,vu']) -->>   Read first 10 timesteps, only the specified columns
-            read_timesteps(10, select_ckeys=['id,xu,yu,vu']) -->>   Read the next 10 timesteps, only the specified columns (DELTA_TIMESTEP is assumed)
-            read_timesteps((10,30))      -->>  Read from TIMESTEP 10 to 30
-            read_timesteps((10,30,2))    -->>  Read every 2 steps from TIMESTEP 10 to 30
+        Read selected keys within a timestep range.
+
+        Examples
+        --------
+        ``read_timesteps(10, start_step=0, select_ckeys=['id,xu,yu,vu'])``
+        ``read_timesteps(10, select_ckeys=['id,xu,yu,vu'])``
+        ``read_timesteps((10, 30))``
+        ``read_timesteps((10, 30, 2))``
         """
         if self._GUI:
             progbar = FloatProgress(min=0, max=100)

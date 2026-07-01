@@ -16,48 +16,13 @@ __all__ = ['MDSample']
 
 class MDSample(object):
     """
-    An MDSample object contains all the information that represent a
-    single and unique Molecular Dynamics sample.
-    For example it may contain:
-     - a trajectory (any N-dim time series in real space)
-     - its spectrum (the Fourier transform)
-     - its Power Spectral Density (aka periodogram)
-     - ...
-    All the information contained in this object is always consistent,
-    i.e. it represents a single MD sample. Any operation that alters
-    any of the sample's properties should create a new MDSample object, in
-    order to preserve the 1:1 correspondence among the sample's attributes.
+    Representation of a single molecular-dynamics sample.
 
-    An MDSample object can be initialized from any of its main properties
-    (trajectory, spectrum, periodogram), although e.g. it is not be possible to
-    uniquely define a trajectory from its periodogram, as this contains less
-    information.
+    The object can store trajectory, spectrum, and periodogram data while
+    keeping derived quantities internally consistent.
 
-    ATTRIBUTES:
-       - traj       the trajectory, a (N, N_EQUIV_COMPONENTS) array
-       - spectr     the spectrum, i.e. trajectory's FFT.
-                    For now it is assumed to be one sided, i.e. it contains
-                    NFREQS = N/2+1 normalized frequencies contained
-                    in the interval [0, 1/(2N*DT)]
-       - psd        the Power Spectral Density (periodogram), defined as
-                              DT    N-1
-                     I(f) =  ---- * SUM | x[n] * exp(-2.0J*pi*f/N) |^2
-                               N    n=0
-                    with f = [0, 1/(2N*DT)]
-       - N          size of traj
-       - NFREQS     number of trajectories, should be N/2+1
-       - freqs      an array of frequencies, should be [0, 1/(2N*DT)]
-       - freqs_THz  an array of frequencies, expressed in THz
-
-       - DT_FS                  timestep in femtoseconds
-       - fpsd                   filtered periodogram
-       - flogpsd                filtered log-periodogram
-       - acf                    autocorrelation function
-       - N_EQUIV_COMPONENTS     number of EQUIVALENT (e.g. Cartesian) components (an average over them will be computed)
-       - MANY_EQUIV_COMPONENTS  True if N_EQUIV_COMPONENTS > 1
-       - PSD_FILTER_W           width of the moving average filter (reduced frequency units)
-       - PSD_FILTER_W_THZ       width of the moving average filter (THz)
-       - PSD_FILTER_WF          width of the moving average filter (number of frequencies)
+    Main attributes include ``traj``, ``spectr``, ``psd``, ``freqs``,
+    ``freqs_THz``, ``DT_FS``, ``fpsd``, ``flogpsd``, and ``acf``.
 
     """
 
@@ -140,9 +105,13 @@ class MDSample(object):
     def initialize_traj(self, array):
         """
         Initialize a trajectory from an array.
+
         The dimensions of the array should be:
+
           (number of time points, number of equivalent components)
+
         or, in the case of one component:
+
           (number of time points)
         """
         if not isinstance(array, (list, np.ndarray, tuple)):

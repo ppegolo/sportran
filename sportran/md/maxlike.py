@@ -19,19 +19,25 @@ class MaxLikeFilter:
     """
     Maximum-likelihood estimate of the Onsager or transport coefficient.
 
-    Parameters:
-    - data: The noisy data (spectral matrix or one of its components).
-    - model: Function that models the data (e.g., spline function).
-    - n_parameters: Number of parameters for the fit or 'AIC' for automatic selection.
-    - n_components: Number of independent samples the data is generated from.
-    - n_currents: Number of independent flux types.
-    - likelihood: Type of likelihood function to use (
-                                                        'wishart',
-                                                        'chisquare',
-                                                        'variancegamma'
-                                                      ).
-    - solver: Optimization solver (e.g., 'BFGS').
-    - omega_fixed: Fixed frequencies for the model nodes.
+    Parameters
+    ----------
+    data
+        Noisy data (spectral matrix or one of its components).
+    model
+        Model function (for example, a spline model).
+    n_parameters
+        Number of model parameters, or ``'AIC'`` for automatic selection.
+    n_components
+        Number of independent samples used to generate the data.
+    n_currents
+        Number of independent flux types.
+    likelihood
+        Likelihood type: ``'wishart'``, ``'chisquare'``, or
+        ``'variancegamma'``.
+    solver
+        Optimization solver (for example ``'BFGS'``).
+    omega_fixed
+        Optional fixed frequencies for model nodes.
     """
 
     def __init__(

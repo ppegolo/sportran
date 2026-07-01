@@ -31,11 +31,13 @@ def scale_kappa_qepw(TEMPERATURE, VOLUME):
     INPUT:
     TEMPERATURE [K]
     VOLUME      cell VOLUME [A^3]
-    The input current is in units of Rydberg atomic units. Current is EXTENSIVE
-    Rydberg atomic units for the energy current are: Ry * a_0 / tau_{a.u.} where
-      Ry = 13.606eV = 2.1799 10^{-18} J
-      a0 = 5.2918 10^{-11}m
-      tau_{a.u.} = 4.8378 10^{-17} s
+    The input current is in units of Rydberg atomic units. Current is
+    EXTENSIVE.
+
+    Rydberg atomic units for the energy current are: ``Ry * a0 / tau_au``.
+    ``Ry = 13.606 eV = 2.1799e-18 J``.
+    ``a0 = 5.2918e-11 m``.
+    ``tau_au = 4.8378e-17 s``.
     """
     return (constants.charge / TEMPERATURE)**2 / constants.kB / VOLUME * 10000. * (constants.Ry *
                                                                                    constants.J_PWtoMETAL)**2

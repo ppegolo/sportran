@@ -106,21 +106,19 @@ def data_length(file):
 
 class TableFile(object):
     """
-    A table-style file that can be read in blocks.
+    Table-style file reader that can be processed in blocks.
 
     Example:
       jfile = TableFile(data_file)
       jfile.read_datalines(NSTEPS=100, select_ckeys=['Step', 'Temp', 'flux'])
       print(jfile.data)
 
-    Variables (columns) are organized into a dictionary according to the column headers.
-    LAMMPS-style vector variables header are grouped together (only if group_vector = True).
-    If the name starts with "c_" or "v_", this is stripped away.
-      e.g.    c_flux[0] c_flux[1] c_flux[2]  -->  placed in 'flux0' key
-    Comments lines are ignored.
+    Variables (columns) are organized into a dictionary according to the
+    column headers. LAMMPS-style vector variable headers can be grouped.
+    Prefixes ``c_`` and ``v_`` are stripped when present.
 
-    #############################################################################
-    The input file should look like this:
+    Input file format
+    -----------------
 
     # COMMENT LINE
     # COMMENT LINE
@@ -134,12 +132,12 @@ class TableFile(object):
 
     def __init__(self, data_file, select_ckeys=None, **kwargs):
         """
-        LAMMPS_Current(data_file, select_ckeys, **kwargs)
+        Initialize a ``TableFile`` reader.
 
-        **kwargs:
-            group_vectors  [default: True]
-            GUI            [default: False]
-            print_elapsed  [default: True]
+        Keyword arguments:
+            ``group_vectors`` [default: ``True``]
+            ``GUI`` [default: ``False``]
+            ``print_elapsed`` [default: ``True``]
         """
 
         if not isinstance(data_file, (bytes, str)):
@@ -263,10 +261,11 @@ class TableFile(object):
         return
 
     def gotostep(self, start_step):
-        """Go to the start_step-th line in the time series (assumes step=1).
-         start_step = -1  -->  ignore, continue from current step
-                       0  -->  go to start step
-                       N  -->  go to N-th step"""
+        """Go to ``start_step`` in the time series (assuming step=1).
+
+        ``start_step = -1`` ignores repositioning and continues from current
+        position.
+        """
         if (start_step >= 0):
             self.file.seek(self._start_byte)
             for i in range(start_step):   # advance of start_step-1 lines
@@ -274,19 +273,26 @@ class TableFile(object):
         return
 
     def read_datalines(self, NSTEPS=0, start_step=-1, select_ckeys=None, max_vector_dim=None, even_NSTEPS=True):
-        """Read NSTEPS steps of file, starting from start_step, and store only
-      the selected ckeys.
-      INPUT:
-        NSTEPS         -> number of steps to read (default: 0 -> reads all the file)
-        start_step  = -1 -> continue from current step (default)
-                       0 -> go to start step
-                       N -> go to N-th step
-        select_ckeys   -> an array with the column keys you want to read (see all_ckeys for a list)
-        max_vector_dim -> when reading vectors read only this number of components (None = read all components)
-        even_NSTEPS    -> round the number of steps to an even number (default: True)
-      OUTPUT:
-        data    ->  a dictionary with the selected-column steps
-      """
+        """Read selected data columns from the table file.
+
+        Parameters
+        ----------
+        NSTEPS
+            Number of steps to read (``0`` means read all remaining lines).
+        start_step
+            Starting step index (``-1`` continues from current position).
+        select_ckeys
+            Column keys to extract.
+        max_vector_dim
+            Maximum number of vector components to read.
+        even_NSTEPS
+            If true, keep an even number of samples.
+
+        Returns
+        -------
+        dict
+            Dictionary with selected columns.
+        """
         if self._GUI:
             progbar = FloatProgress(min=0, max=100)
             display(progbar)

@@ -26,41 +26,11 @@ LOG2 = np.log(2)
 
 class BayesFilter(object):
     """
-    BAYESIAN ANALYSIS based filtering.
+    Bayesian filtering for transport-coefficient estimation.
 
-    ** INPUT VARIABLES:
-    spectrum        = the original periodogram (if single-component) of spectral matrix
-        (if multi-component)
-    is_offdiag      = If True, estimate the off-diagonal matrix element of the spectral
-        matrix (default = True)
-    is_diag         = If True, estimate the diagonal matrix elements of the spectral
-        matrix (default = False)
-    model           = the function that models the data (for now only spline)
-    n_parameters    = the number of parameters to be used for the fit
-
-    ** INTERNAL VARIABLES:
-    samplelogpsd  = the original sample log-PSD - logpsd_THEORY_mean
-
-    logpsdK  = the cepstrum of the data, \\hat{C}_n (i.e. the DCT of samplelogpsd)
-    aic_min  = minimum value of the AIC
-    aic_Kmin = cutoffK that minimizes the AIC
-    aic_Kmin_corrfactor = aic_Kmin cutoff correction factor (default: 1.0)
-    cutoffK  = (P*-1) = cutoff used to compute logtau and logpsd (by default = aic_Kmin * aic_Kmin_corrfactor)
-    manual_cutoffK_flag = True if cutoffK was manually specified, False if aic_Kmin is being used
-
-    logtau          = filtered log(tau) as a function of cutoffK, L_0(P*-1)
-    logtau_cutoffK  = filtered log(tau) at cutoffK, L*_0
-    logtau_var_cutoffK = theoretical L*_0 variance
-    logtau_std_cutoffK = theoretical L*_0 standard deviation
-    logpsd          = filtered log-PSD at cutoffK
-
-    tau          = filtered tau as a function of cutoffK, S_0(P*-1)
-    tau_cutoffK  = filtered tau at cutoffK, S*_0
-    tau_var_cutoffK = theoretical S*_0 variance
-    tau_std_cutoffK = theoretical S*_0 standard deviation
-    psd          = filtered PSD at the specified cutoffK
-
-    p_aic... = Bayesian AIC weighting stuff
+    The main inputs are the spectrum, model function, and model-parameter count.
+    During analysis, this class computes cepstral and AIC-related quantities,
+    then estimates filtered ``logtau``/``tau`` values and their uncertainties.
     """
 
     def __init__(

@@ -6,7 +6,7 @@ from . import constants
 def scale_kappa_GPa(TEMPERATURE, VOLUME):
     """
     Conversion factor for the viscosity to SI units when stress is in GPa.
-    Notice that GPa are the units used for stress in cp.x *.str file.
+    Notice that GPa are the units used for stress in cp.x ``*.str`` files.
     INPUT:
     TEMPERATURE [K]
     VOLUME      cell VOLUME [A^3]

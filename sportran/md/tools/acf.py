@@ -4,10 +4,10 @@ import numpy as np
 
 
 def integrate_acf(acf):
-    """Returns the integral function of acf, i.e. its integral as a function of the upper integration limit.
-    Supports multi-component (N, N_COMP) arrays.
-    Trapezial integration is used.
-          tau[i] = trapz_{0}^{i} acf
+    """Return cumulative integral of ``acf`` versus upper integration limit.
+
+    Supports multi-component ``(N, N_COMP)`` arrays.
+    Trapezoidal integration is used: ``tau[i] = trapz(acf[0:i+1])``.
     """
 
     N = acf.shape[0]
@@ -47,7 +47,7 @@ def acovf(x, unbiased=False, demean=True, fft=False, missing='none'):
 
     References
     -----------
-    .. [1] Parzen, E., 1963. On spectral analysis with missing observations
+    .. [acovf-parzen1963] Parzen, E., 1963. On spectral analysis with missing observations
            and amplitude modulation. Sankhya: The Indian Journal of
            Statistics, Series A, pp.383-392.
     """
@@ -161,7 +161,7 @@ def acf(x, unbiased=False, nlags=40, qstat=False, fft=False, alpha=None, missing
 
     References
     ----------
-    .. [1] Parzen, E., 1963. On spectral analysis with missing observations
+    .. [acf-parzen1963] Parzen, E., 1963. On spectral analysis with missing observations
        and amplitude modulation. Sankhya: The Indian Journal of
        Statistics, Series A, pp.383-392.
 

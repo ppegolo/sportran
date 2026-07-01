@@ -612,23 +612,27 @@ class Current(MDSample, abc.ABC):
         self, aic_type="aic", aic_Kmin_corrfactor=1.0, manual_cutoffK=None
     ):
         """
-        Performs Cepstral Analysis on the Current's trajectory.
+        Perform cepstral analysis of the current trajectory.
 
-        `cutoffK` = (P*-1) is the number of cepstral coefficients retained by the filter.
-        By default, this is chosen as the number of cepstral coefficients that minimizes the Akaike Information Criterion,
-        multiplied by a correction factor (`aic_Kmin_corrfactor`):
-           self.cfilt.cutoffK = argmin(self.cfilt.aic) * aic_Kmin_corrfactor
-        This choice can be manually overridden by setting `manual_cutoffK` to the desired value.
+        ``cutoffK`` (``P*-1``) is the number of retained cepstral coefficients.
+        By default, it is selected by minimizing the chosen AIC variant and then
+        scaled by ``aic_Kmin_corrfactor``.
 
-        Input parameters:
-           aic_type            = the Akaike Information Criterion function used to choose the cutoff ('aic', 'aicc')
-           aic_Kmin_corrfactor = correction factor multiplied by the AIC cutoff (cutoffK = aic_Kmin * Kmin_corrfactor) (default: 1.0)
-           manual_cutoffK      = (P*-1) = manual cutoff. If set, the AIC cutoff will be ignored.
+        Parameters
+        ----------
+        aic_type : str
+            Akaike criterion variant used to choose the cutoff (``'aic'`` or
+            ``'aicc'``).
+        aic_Kmin_corrfactor : float
+            Multiplicative correction applied to the AIC minimum cutoff.
+        manual_cutoffK : int or None
+            Manual ``P*-1`` cutoff. If provided, the AIC cutoff is ignored.
 
-        The resulting conductivity is returned in the chosen units, generally:
-            kappa  +/-  kappa_std   [SI units]
-
-        The log of the analysis can be retried from the variable `self.cepstral_log`.
+        Notes
+        -----
+        Results are stored in ``self.kappa`` and ``self.kappa_std`` (in
+        ``self._KAPPA_SI_UNITS``), and the text summary is stored in
+        ``self.cepstral_log``.
         """
 
         self.cepf = CepstralFilter(

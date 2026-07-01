@@ -35,51 +35,33 @@ np.set_printoptions(precision=8)
 
 def main():
     """
-    --------------------------------------------------------------------------------
-      *** SPORTRAN ***  command line interface
-    --------------------------------------------------------------------------------
-    This script performs the cepstral analysis of a (heat) current.
-    Results are written to stdout and a log file, and plots are saved in PDF format.
+    SporTran command-line interface.
 
-    INPUT FORMAT:
-     - table  : a column-formatted text file, with a header in the same format of LAMMPS.
-                The name of the LAMMPS compute can start with c_ and end with [#some_number], the code will recognize
-                vectors, and will read automatically all the components.
-     - dict   : a Numpy binary file containing a dictionary (e.g. obtained from the script i_o/read_lammps_log.py)
-     - LAMMPS : a LAMMPS log file.
-                In this case a --run-keyword  must be provided, that identifies the desired 'run' command. This keyword must equal to the comment line placed just before the desired 'run' command (see documentation of i_o/read_lammps_log.py for an example).
+    This script performs cepstral analysis of a current time series. Results are
+    written to stdout and a log file, and plots are saved in PDF format.
 
-    Physical parameters (time step, temperature, volume, units) must be provided.
-    The average temperature is computed if a column with the header (or a dictionary key) 'Temp' is found; otherwise you have to specify it.
+    Input formats
+    -------------
+    - ``table``: column-formatted text file with LAMMPS-like headers.
+    - ``dict``: NumPy binary file containing a dictionary.
+    - ``lammps``: LAMMPS log file (requires ``--run-keyword``).
 
-    You must provide the key that identifies the main current ('-k KEY')
-    You can also provide additional currents if your system is a multi-component fluid ('-j CURRENT2 -j CURRENT3'), or you want to decorrelate the main current with respect to them (see PRL).
-    (Notice that the output is the same with any number of components. If you have a lots of components, note that you may want to use more than 3 independent processes -- see theory.)
+    Output files
+    ------------
+    - ``[output].logfile``: log of the analysis.
+    - ``[output].plots.pdf``: all generated plots.
+    - ``[output].psd``: original periodogram and log-periodogram.
+    - ``[output].cospectrum``: full matrix cospectrum (when available).
+    - ``[output].resampled_psd``: resampled periodogram and log-periodogram.
+    - ``[output].cepstral``: cepstral coefficients and transport estimates.
+    - ``[output].cepstrumfiltered_psd``: cepstrum-filtered spectra.
 
-    OUTPUT FILES:
-      [output].logfile
-          A log of the available information.
-      [output].plots.pdf
-          A PDF with all the plots generated.
-    OUTPUT DATA files (can be text ".dat" or binary ".npy"):
-      [output].psd
-          freqs [THz], original periodogram, original log(periodogram)
-      [output].cospectrum (if any)
-          freqs [THz], full matrix cospectrum
-      [output].resampled_psd
-          freqs [THz], resampled periodogram, resampled log(periodogram)
-      [output].cepstral
-          cepstral coefficients ck, error(ck), L0(P*), err(L0(P*)), kappa(P*) [W/mK], err(kappa(P*)) [W/mK]
-          the line number minus one is the number of cepstral coefficients used (P*).
-      [output].cepstrumfiltered_psd
-          freqs [THz], cepstrum-filtered periodogram, cepstrum-filtered log(periodogram)
+    Example
+    -------
+    Read and analyze ``examples/data/Silica.dat`` where energy-flux columns are
+    named ``c_flux[1]``, ``c_flux[2]``, ``c_flux[3]``:
 
-    -------------------------
-    Example:
-      read and analyze "examples/data/Silica.dat" file. The energy-flux columns are called c_flux[1], c_flux[2], c_flux[3]
-
-        ./analysis "examples/data/Silica.dat" --VOLUME 3130.431110818 --TEMPERATURE 1065.705630 -t 1.0 -k flux1 -u metal -r --FSTAR 28.0 -w 0.5 -o silica_test
-    -------------------------
+    ``./analysis "examples/data/Silica.dat" --VOLUME 3130.431110818 --TEMPERATURE 1065.705630 -t 1.0 -k flux1 -u metal -r --FSTAR 28.0 -w 0.5 -o silica_test``
     """
     _epilog = """---
     Enjoy it!

@@ -18,16 +18,10 @@ class MDSamplePlotter(plotter.Plotter):
     def plot_periodogram(current, PSD_FILTER_W=None, *, freq_units='THz', freq_scale=1.0, axes=None, FIGSIZE=None,
                          mode='log', **plot_kwargs):
         """
-        Plots the current's periodogram (psd)
-        :param current:         current object to plot periodogram
-        :param PSD_FILTER_W:    width of the filtering window
-        :param freq_units:      'thz'  [THz]
-                                'red'  [omega*DT/(2*pi)]
-        :param freq_scale:      rescale red frequencies by this factor (e.g. 2 --> freq = [0, 0.25])
-        :param axes:            plot periodograms in units of kappa (default: True) - NB: log-psd not converted
-        :param FIGSIZE:         size of the plot
+        Plot an ``MDSample`` periodogram.
 
-        :return: a matplotlib.axes.Axes object
+        Parameters match :func:`sportran.plotter.plotter.plot_periodogram`,
+        except that ``kappa_units`` is always disabled for ``MDSample``.
         """
         # kappa_units is not supported by MDSample
         from .plotter import plot_periodogram

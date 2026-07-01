@@ -12,7 +12,6 @@ Introduction
 .. toctree::
    README.md
    README_GUI.md
-   CONTRIBUTING.md
 
 Examples
 ========

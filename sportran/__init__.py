@@ -20,7 +20,7 @@ try:
 except ImportError:   # pragma: no cover
     from importlib_metadata import version as _pkg_version
 
-__all__ = [current.__all__ + md.__all__]
+__all__ = current.__all__ + md.__all__
 
 __license__ = 'GPL-3.0 license, see LICENSE.txt file.'
 try:
