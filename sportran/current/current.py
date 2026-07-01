@@ -1,22 +1,25 @@
-# -*- coding: utf-8 -*-
-"""
-Current defines a generic flux time series that can be associated to a transport coefficient.
-This is just an abstract class, that should be subclassed.
-"""
-
 import abc
-import numpy as np
 import inspect
-from sportran.md.mdsample import MDSample
-from sportran.md.cepstral import CepstralFilter, multicomp_cepstral_parameters
+import warnings
+from typing import Any
+
+import numpy as np
+
 from sportran.md.bayes import BayesFilter
+from sportran.md.cepstral import CepstralFilter, multicomp_cepstral_parameters
 from sportran.md.maxlike import MaxLikeFilter
+from sportran.md.mdsample import MDSample
 from sportran.md.tools.filter import runavefilter
 from sportran.md.tools.spectrum import freq_red_to_THz
-from . import units
-from sportran.utils import log
 from sportran.plotter.current import CurrentPlotter
-import warnings
+from sportran.utils import log
+
+from . import units
+
+try:
+    from sportran.md.bayes import BayesFilter_parallel
+except ImportError:
+    BayesFilter_parallel = None
 
 __all__ = ["Current"]
 
@@ -55,8 +58,16 @@ class Current(MDSample, abc.ABC):
     }
     _KAPPA_SI_UNITS = ""
     _default_plotter = CurrentPlotter
+    otherMD: list[MDSample] | None
+    cospectrum: np.ndarray | None
+    fcospectrum: np.ndarray | None
+    cepf: CepstralFilter | None
+    kappa: float
+    kappa_std: float
+    psd: np.ndarray
+    logpsd: np.ndarray
 
-    def __init__(self, traj, **params):
+    def __init__(self, traj: Any, **params: Any) -> None:
         # e.g. params: (DT_FS, UNITS, TEMPERATURE, VOLUME, PSD_FILTER_W=None, FREQ_UNITS='THz')
         # validate input parameters
 
@@ -82,6 +93,10 @@ class Current(MDSample, abc.ABC):
         DT_FS = params.pop("DT_FS")
         MAIN_CURRENT_INDEX = params.pop("MAIN_CURRENT_INDEX", 0)
         MAIN_CURRENT_FACTOR = params.pop("MAIN_CURRENT_FACTOR", 1.0)
+        self.otherMD = None
+        self.cospectrum = None
+        self.fcospectrum = None
+        self.cepf = None
         self.initialize_currents(traj, DT_FS, MAIN_CURRENT_INDEX, MAIN_CURRENT_FACTOR)
         self.initialize_units(
             **params
@@ -95,7 +110,7 @@ class Current(MDSample, abc.ABC):
             )
         self.cepf = None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         msg = (
             type(self).__name__
             + "\n  N_CURRENTS  =  {}\n".format(self.N_CURRENTS)
@@ -120,7 +135,7 @@ class Current(MDSample, abc.ABC):
 
     @property
     @abc.abstractmethod
-    def _builder(self):
+    def _builder(self) -> dict[str, Any]:
         """
         Returns a dictionary of all keyworded parameters needed to rebuild an identical object of the same class.
         The trajectory is excluded. Used by self._get_builder().
@@ -129,13 +144,15 @@ class Current(MDSample, abc.ABC):
         """
         raise NotImplementedError
 
-    def _get_builder(self):
+    def _get_builder(self) -> tuple[type["Current"], dict[str, Any]]:
         """
         Get a tuple (class, builder) that can be used to build a new object with same parameters:
           TimeSeries, builder = self._get_builder()
           new_ts = TimeSeries(**builder)
         """
         if self.MANY_CURRENTS:
+            if self.otherMD is None:
+                raise RuntimeError("Other currents not initialized.")
             traj_array = np.vstack(([self.traj], [j.traj for j in self.otherMD]))
         else:
             traj_array = self.traj
@@ -144,7 +161,7 @@ class Current(MDSample, abc.ABC):
         return type(self), kwargs
 
     @classmethod
-    def set_plotter(cls, plotter=None):
+    def set_plotter(cls, plotter: type[Any] | None = None) -> None:
         """
         Set the plotter class.
         The _plotter attribute will contain the selected plotter class.
@@ -156,13 +173,17 @@ class Current(MDSample, abc.ABC):
         """
         # if called by a subclass of Current, change the base class (Current)
         if issubclass(cls, Current) and cls != Current:
-            cls = Current
+            cls = Current  # type: ignore[type-abstract]
         # (note: it is not possible to delete the parent class' attributes from a child. But here we forcibly do this operation on cls = Current)
         super().set_plotter(plotter)
 
     def initialize_currents(
-        self, j, DT_FS, main_current_index=0, main_current_factor=1.0
-    ):
+        self,
+        j: Any,
+        DT_FS: float,
+        main_current_index: int = 0,
+        main_current_factor: float = 1.0,
+    ) -> None:
         # check if we have a multicomponent fluid
         j = np.array(j, dtype=float)
         if len(j.shape) == 3:
@@ -200,9 +221,11 @@ class Current(MDSample, abc.ABC):
         self.fcospectrum = None
 
     @classmethod
-    def _get_units(cls):
+    def _get_units(cls) -> dict[str, Any]:
         try:
             # get the units submodule corresponding to this class
+            if cls._current_type is None:
+                raise TypeError
             units_module = getattr(units, cls._current_type)
         except AttributeError:
             print(
@@ -222,8 +245,9 @@ class Current(MDSample, abc.ABC):
             name.replace(units_prefix, ""): function
             for name, function in inspect.getmembers(
                 units_module,
-                predicate=lambda f: inspect.isfunction(f)
-                and f.__name__.startswith(units_prefix),
+                predicate=lambda f: (
+                    inspect.isfunction(f) and f.__name__.startswith(units_prefix)
+                ),
             )
         }
         if not units_d:
@@ -235,7 +259,7 @@ class Current(MDSample, abc.ABC):
         return units_d
 
     @classmethod
-    def get_units_list(cls):
+    def get_units_list(cls) -> Any:
         """
         Get the list of supported units.
         Units are defined in the module current/units/{current_type}.py, where
@@ -243,7 +267,7 @@ class Current(MDSample, abc.ABC):
         """
         return cls._get_units().keys()
 
-    def initialize_units(self, **parameters):
+    def initialize_units(self, **parameters: Any) -> None:
         """
         Initializes the units and defines the KAPPA_SCALE.
         """
@@ -272,7 +296,11 @@ class Current(MDSample, abc.ABC):
                     )
                 )
 
-    def compute_psd(self, PSD_FILTER_W=None, freq_units="THz"):
+    def compute_psd(
+        self,
+        PSD_FILTER_W: float | None = None,
+        freq_units: str = "THz",
+    ) -> None:
         # overrides MDSample method
         """
         Compute the periodogram from the heat current time series.
@@ -286,6 +314,7 @@ class Current(MDSample, abc.ABC):
                 "The number of degrees of freedom of the chi-squared distribution is <=0. The number of "
                 "equivalent (Cartesian) components of the input current must be >= number of currents.",
                 RuntimeWarning,
+                stacklevel=2,
             )
 
         if self.MANY_CURRENTS:
@@ -299,12 +328,12 @@ class Current(MDSample, abc.ABC):
 
     def _compute_psd_multi(
         self,
-        others,
-        PSD_FILTER_W=None,
-        freq_units="THz",
-        normalize=False,
-        call_other=True,
-    ):
+        others: Any,
+        PSD_FILTER_W: float | None = None,
+        freq_units: str = "THz",
+        normalize: bool = False,
+        call_other: bool = True,
+    ) -> None:
         """
         For multi-component (many-current) systems: compute the cospectrum matrix and the transport coefficient.
         The results have almost the same statistical properties.
@@ -371,6 +400,8 @@ class Current(MDSample, abc.ABC):
 
         # compute the element 1/"(0,0) of the inverse" (aka the transport coefficient)
         # the diagonal elements of the inverse have very convenient statistical properties
+        if self.cospectrum is None:
+            raise RuntimeError("Cospectrum not initialized.")
         multi_psd = (
             np.linalg.inv(self.cospectrum.transpose((2, 0, 1)))[:, 0, 0] ** -1
         ).real / self.ndf_chi
@@ -387,11 +418,11 @@ class Current(MDSample, abc.ABC):
 
     def filter_psd(
         self,
-        PSD_FILTER_W=None,
-        freq_units="THz",
-        window_type="rectangular",
-        logpsd_filter_type=1,
-    ):
+        PSD_FILTER_W: float | None = None,
+        freq_units: str = "THz",
+        window_type: str = "rectangular",
+        logpsd_filter_type: int = 1,
+    ) -> None:
         """
         Filter the periodogram with the given PSD_FILTER_W [freq_units].
           - PSD_FILTER_W  PSD filter window [freq_units]
@@ -411,7 +442,7 @@ class Current(MDSample, abc.ABC):
                         self.fcospectrum[i].append(ffpsd / self.N_EQUIV_COMPONENTS)
                 self.fcospectrum = np.asarray(self.fcospectrum)
 
-    def initialize_cepstral_parameters(self):
+    def initialize_cepstral_parameters(self) -> None:
         """
         Defines the parameters of the theoretical distribution of the cepstrum.
         """
@@ -428,19 +459,23 @@ class Current(MDSample, abc.ABC):
 
     def bayesian_analysis(
         self,
-        model,
-        n_parameters,
-        is_restart=False,
-        n_steps=2000000,
-        backend="chain.h5",
-        burn_in=None,
-        thin=None,
-        mask=None,
-        log_like="off",
-        parallel=False,
-        ncpus=1,
-    ):
+        model: Any,
+        n_parameters: int,
+        is_restart: bool = False,
+        n_steps: int = 2000000,
+        backend: str = "chain.h5",
+        burn_in: int | None = None,
+        thin: int | None = None,
+        mask: Any = None,
+        log_like: str = "off",
+        parallel: bool = False,
+        ncpus: int = 1,
+    ) -> None:
         if parallel:
+            if BayesFilter_parallel is None:
+                raise RuntimeError(
+                    "BayesFilter_parallel is not available in sportran.md.bayes"
+                )
             self.bayes = BayesFilter_parallel(
                 self.cospectrum,
                 model,
@@ -490,17 +525,17 @@ class Current(MDSample, abc.ABC):
     # MAXLIKE methods
     def maxlike_estimate(
         self,
-        model,
-        n_parameters="AIC",
-        mask=None,
-        likelihood="wishart",
-        solver="BFGS",
-        guess_runave_window=50,
-        minimize_kwargs=None,
-        ext_guess=None,
-        limits=None,
-        omega_fixed=None,
-    ):
+        model: Any,
+        n_parameters: str | int = "AIC",
+        mask: Any = None,
+        likelihood: str = "wishart",
+        solver: str = "BFGS",
+        guess_runave_window: int = 50,
+        minimize_kwargs: dict[str, Any] | None = None,
+        ext_guess: Any = None,
+        limits: Any = None,
+        omega_fixed: Any = None,
+    ) -> None:
         """
         Perform maximum likelihood estimation and optionally select the optimal number of parameters using AIC.
         """
@@ -555,9 +590,12 @@ class Current(MDSample, abc.ABC):
         )
 
         if isinstance(n_parameters, str) and n_parameters.lower() == "aic":
-            self.mle_log += "  Optimal n_parameters (AIC) = {:d}\n".format(
-                self.optimal_nparameters
-            )
+            if self.optimal_nparameters is None:
+                self.mle_log += "  Optimal n_parameters (AIC) = N/A\n"
+            else:
+                self.mle_log += "  Optimal n_parameters (AIC) = {:d}\n".format(
+                    self.optimal_nparameters
+                )
         else:
             self.mle_log += "  Fixed n_parameters = {:d}\n".format(
                 self.maxlike.n_parameters
@@ -568,7 +606,10 @@ class Current(MDSample, abc.ABC):
             for i in range(self.N_CURRENTS):
                 for j in range(i, self.N_CURRENTS):
                     mean_val = self.NLL_mean[i, j]
-                    std_val = self.NLL_std[i, j]
+                    if self.NLL_std is None:
+                        std_val = 0
+                    else:
+                        std_val = self.NLL_std[i, j]
 
                     self.mle_log += (
                         f"  S_{{{i}{j}}} = {mean_val:18f} +/- {std_val:10f}\n"
@@ -590,16 +631,20 @@ class Current(MDSample, abc.ABC):
 
         log.write_log(self.mle_log)
 
-    def _get_data_by_likelihood(self, likelihood):
+    def _get_data_by_likelihood(self, likelihood: str) -> Any:
         """
         Get the data to be used for the likelihood estimation based on the provided likelihood type.
         """
         likelihood = likelihood.lower()
         if likelihood == "wishart":
+            if self.cospectrum is None:
+                raise RuntimeError("Cospectrum not initialized.")
             return self.cospectrum.real * self.N_CURRENTS
         elif likelihood in ["chisquare", "chisquared"]:
             return self.psd
         elif likelihood in ["variancegamma", "variance-gamma"]:
+            if self.cospectrum is None:
+                raise RuntimeError("Cospectrum not initialized.")
             return self.cospectrum.real[0, 1]  # * self.N_CURRENTS
         else:
             raise ValueError(
@@ -609,8 +654,11 @@ class Current(MDSample, abc.ABC):
     ################################################################################################################################################
 
     def cepstral_analysis(
-        self, aic_type="aic", aic_Kmin_corrfactor=1.0, manual_cutoffK=None
-    ):
+        self,
+        aic_type: str = "aic",
+        aic_Kmin_corrfactor: float = 1.0,
+        manual_cutoffK: int | None = None,
+    ) -> None:
         """
         Perform cepstral analysis of the current trajectory.
 
@@ -641,6 +689,8 @@ class Current(MDSample, abc.ABC):
             psd_theory_mean=self.psd_THEORY_mean,
             aic_type=aic_type,
         )
+        if self.cepf is None:
+            raise RuntimeError("Cepstral filter initialization failed.")
         self.cepf.scan_filter_tau(
             cutoffK=manual_cutoffK, aic_Kmin_corrfactor=aic_Kmin_corrfactor
         )
@@ -659,7 +709,8 @@ class Current(MDSample, abc.ABC):
         else:
             self.cepstral_log += (
                 "  cutoffK  = (P*-1) = {:d}  (manual, AIC_Kmin = {:d})\n".format(
-                    self.cepf.cutoffK, self.cepf.aic_Kmin, self.cepf.aic_Kmin_corrfactor
+                    self.cepf.cutoffK,
+                    self.cepf.aic_Kmin,
                 )
             )
         self.cepstral_log += (
@@ -679,15 +730,15 @@ class Current(MDSample, abc.ABC):
 
     def resample(
         self,
-        TSKIP=None,
-        fstar_THz=None,
-        FILTER_W=None,
-        plot=False,
-        PSD_FILTER_W=None,
-        freq_units="THz",
-        FIGSIZE=None,
-        verbose=True,
-    ):  # yapf: disable
+        TSKIP: int | None = None,
+        fstar_THz: float | None = None,
+        FILTER_W: int | None = None,
+        plot: bool = False,
+        PSD_FILTER_W: float | None = None,
+        freq_units: str = "THz",
+        FIGSIZE: Any = None,
+        verbose: bool = True,
+    ) -> Any:  # yapf: disable
         """
         Simulate the resampling of the time series.
 
@@ -730,16 +781,16 @@ class Current(MDSample, abc.ABC):
 
     def fstar_analysis(
         self,
-        TSKIP_LIST,
-        aic_type="aic",
-        aic_Kmin_corrfactor=1.0,
-        manual_cutoffK=None,
-        plot=True,
-        axes=None,
-        FIGSIZE=None,
-        verbose=False,
-        **plot_kwargs,
-    ):  # yapf: disable
+        TSKIP_LIST: Any,
+        aic_type: str = "aic",
+        aic_Kmin_corrfactor: float = 1.0,
+        manual_cutoffK: int | None = None,
+        plot: bool = True,
+        axes: Any = None,
+        FIGSIZE: Any = None,
+        verbose: bool = False,
+        **plot_kwargs: Any,
+    ) -> Any:  # yapf: disable
         from sportran.current.tools.fstar_analysis import fstar_analysis
 
         return fstar_analysis(

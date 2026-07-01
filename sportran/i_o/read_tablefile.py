@@ -35,10 +35,12 @@
 ###      print(jfile.data)
 ################################################################################
 
-import numpy as np
-from time import time
-from sportran.utils import log
 from io import BytesIO, StringIO
+from time import time
+
+import numpy as np
+
+from sportran.utils import log
 
 
 def is_string(string):
@@ -50,8 +52,8 @@ def is_string(string):
 
 
 def is_vector_variable(string):
-    bracket = string.rfind('[')
-    if (bracket == -1):
+    bracket = string.rfind("[")
+    if bracket == -1:
         bracket = 0
     return bracket
 
@@ -73,14 +75,14 @@ def file_length(file):
         with open(file) as f:
             i = _get_file_length(f)
     else:
-        raise ValueError('Unsupported data type for file: {}'.format(type(file)))
+        raise ValueError("Unsupported data type for file: {}".format(type(file)))
 
     return i
 
 
 def _get_data_length(f):
     i = 0
-    while is_string(f.readline().split()[0]):   # skip text lines
+    while is_string(f.readline().split()[0]):  # skip text lines
         pass
     for i, l in enumerate(f, 2):
         pass
@@ -99,7 +101,7 @@ def data_length(file):
         with open(file) as f:
             i = _get_data_length(f)
     else:
-        raise ValueError('Unsupported data type for file: {}'.format(type(file)))
+        raise ValueError("Unsupported data type for file: {}".format(type(file)))
 
     return i
 
@@ -141,78 +143,89 @@ class TableFile(object):
         """
 
         if not isinstance(data_file, (bytes, str)):
-            raise ValueError('Unsupported dat type for file: {}'.format(type(data_file)))
+            raise ValueError(
+                "Unsupported dat type for file: {}".format(type(data_file))
+            )
 
         self.data_file = data_file
         self.select_ckeys = select_ckeys
-        group_vectors = kwargs.get('group_vectors', True)
-        self._GUI = kwargs.get('GUI', False)
-        self._print_elapsed = kwargs.get('print_elapsed', True)
+        group_vectors = kwargs.get("group_vectors", True)
+        self._GUI = kwargs.get("GUI", False)
+        self._print_elapsed = kwargs.get("print_elapsed", True)
         if self._GUI:
-            from ipywidgets import FloatProgress
             from IPython.display import display
+            from ipywidgets import FloatProgress
+
             global FloatProgress, display
 
         self._open_file()
         self._read_ckeys(group_vectors)
         self.ckey = None
         self.MAX_NSTEPS = data_length(self.data_file)
-        log.write_log('Data length = ', self.MAX_NSTEPS)
+        log.write_log("Data length = ", self.MAX_NSTEPS)
         return
 
     def __repr__(self):
-        msg = 'TableFile:\n' + \
-              '  file:      {}\n'.format(self.data_file) + \
-              '  all_ckeys:     {}\n'.format(self.all_ckeys) + \
-              '  select_ckeys:  {}\n'.format(self.select_ckeys) + \
-              '  used ckey:     {}\n'.format(self.ckey) + \
-              '  start pos:     {}\n'.format(self._start_byte) + \
-              '  current pos:   {}\n'.format(self.file.tell())
+        msg = (
+            "TableFile:\n"
+            + "  file:      {}\n".format(self.data_file)
+            + "  all_ckeys:     {}\n".format(self.all_ckeys)
+            + "  select_ckeys:  {}\n".format(self.select_ckeys)
+            + "  used ckey:     {}\n".format(self.ckey)
+            + "  start pos:     {}\n".format(self._start_byte)
+            + "  current pos:   {}\n".format(self.file.tell())
+        )
         return msg
 
     def _open_file(self):
         """Open the file."""
         if isinstance(self.data_file, bytes):
-            self.file = StringIO(BytesIO(self.data_file).read().decode('utf-8'))
+            self.file = StringIO(BytesIO(self.data_file).read().decode("utf-8"))
         elif isinstance(self.data_file, str):
             try:
-                self.file = open(self.data_file, 'r')
+                self.file = open(self.data_file, "r")
             except:
-                raise ValueError('File does not exist.')
+                raise ValueError("File does not exist.")
         return
 
     def _read_ckeys(self, group_vectors=True):
         """Read the column keys. If group_vectors=True the vector ckeys are grouped togheter"""
         self.all_ckeys = {}
-        self.header = ''
+        self.header = ""
         while True:
             line = self.file.readline()
-            if len(line) == 0:   # EOF
-                raise RuntimeError('Reached EOF, no ckeys found.')
+            if len(line) == 0:  # EOF
+                raise RuntimeError("Reached EOF, no ckeys found.")
             values = np.array(line.split())
             # text line: read variables names and save indexes in ckey
-            if (is_string(values[0]) and (values[0].find('#') < 0)):
+            if is_string(values[0]) and (values[0].find("#") < 0):
                 self.header += line[:-1]
                 for i in range(len(values)):
                     if group_vectors:
-                        bracket = is_vector_variable(values[i])   # position of left square bracket
+                        bracket = is_vector_variable(
+                            values[i]
+                        )  # position of left square bracket
                     else:
                         bracket = 0
-                    if (bracket == 0):   # the variable is a scalar
+                    if bracket == 0:  # the variable is a scalar
                         key = str(values[i])
-                        if (key[:2] == 'c_'):   # remove 'c_' if present
+                        if key[:2] == "c_":  # remove 'c_' if present
                             key = key[2:]
                         self.all_ckeys[key] = [i]
-                    else:   # the variable is a vector
-                        key = str(values[i][:bracket])   # name of vector
-                        if (key[:2] == 'c_'):   # remove 'c_' if present
+                    else:  # the variable is a vector
+                        key = str(values[i][:bracket])  # name of vector
+                        if key[:2] == "c_":  # remove 'c_' if present
                             key = key[2:]
-                        vecidx = int(values[i][bracket + 1:-1])   # current index
-                        if key in self.all_ckeys:   # if this vector is already defined, add this component
-                            if (vecidx > self.all_ckeys[key].size):
-                                self.all_ckeys[key] = np.resize(self.all_ckeys[key], vecidx)
+                        vecidx = int(values[i][bracket + 1 : -1])  # current index
+                        if (
+                            key in self.all_ckeys
+                        ):  # if this vector is already defined, add this component
+                            if vecidx > self.all_ckeys[key].size:
+                                self.all_ckeys[key] = np.resize(
+                                    self.all_ckeys[key], vecidx
+                                )
                             self.all_ckeys[key][vecidx - 1] = i
-                        else:   # if it is not, define a vector
+                        else:  # if it is not, define a vector
                             self.all_ckeys[key] = np.array([0] * vecidx)
                             self.all_ckeys[key][-1] = i
                 self._start_byte = self.file.tell()
@@ -220,9 +233,11 @@ class TableFile(object):
             else:
                 self.header += line
         log.write_log(self.header)
-        log.write_log(' #####################################')
-        log.write_log('  all_ckeys = ', sorted(self.all_ckeys.items(), key=lambda kv: kv[0]))
-        log.write_log(' #####################################')
+        log.write_log(" #####################################")
+        log.write_log(
+            "  all_ckeys = ", sorted(self.all_ckeys.items(), key=lambda kv: kv[0])
+        )
+        log.write_log(" #####################################")
         return
 
     def _set_ckey(self, select_ckeys=None, max_vector_dim=None):
@@ -230,25 +245,27 @@ class TableFile(object):
         if select_ckeys is not None:
             self.select_ckeys = select_ckeys
         self.ckey = {}
-        if self.select_ckeys is None:   # take all ckeys
+        if self.select_ckeys is None:  # take all ckeys
             self.ckey = self.all_ckeys
         else:
-            for key in self.select_ckeys:   # take only the selected ckeys
+            for key in self.select_ckeys:  # take only the selected ckeys
                 value = self.all_ckeys.get(key, None)
                 if value is not None:
-                    self.ckey[key] = value[:max_vector_dim]   # copy all indexes (up to max dimension for vectors)
+                    self.ckey[key] = value[
+                        :max_vector_dim
+                    ]  # copy all indexes (up to max dimension for vectors)
                 else:
-                    log.write_log('Warning: ', key, 'key not found.')
-        if (len(self.ckey) == 0):
-            raise KeyError('No ckey set. Check selected keys.')
+                    log.write_log("Warning: ", key, "key not found.")
+        if len(self.ckey) == 0:
+            raise KeyError("No ckey set. Check selected keys.")
         else:
-            log.write_log('  ckey = ', sorted(self.ckey.items(), key=lambda kv: kv[0]))
+            log.write_log("  ckey = ", sorted(self.ckey.items(), key=lambda kv: kv[0]))
         return
 
     def _initialize_dic(self, NSTEPS=None):
         """Initialize the data dictionary once the ckeys have been set."""
         if self.ckey is None:
-            raise ValueError('ckey not set.')
+            raise ValueError("ckey not set.")
         if NSTEPS is None:
             NSTEPS = 1
             self.dic_allocated = False
@@ -266,13 +283,20 @@ class TableFile(object):
         ``start_step = -1`` ignores repositioning and continues from current
         position.
         """
-        if (start_step >= 0):
+        if start_step >= 0:
             self.file.seek(self._start_byte)
-            for i in range(start_step):   # advance of start_step-1 lines
+            for i in range(start_step):  # advance of start_step-1 lines
                 self.file.readline()
         return
 
-    def read_datalines(self, NSTEPS=0, start_step=-1, select_ckeys=None, max_vector_dim=None, even_NSTEPS=True):
+    def read_datalines(
+        self,
+        NSTEPS=0,
+        start_step=-1,
+        select_ckeys=None,
+        max_vector_dim=None,
+        even_NSTEPS=True,
+    ):
         """Read selected data columns from the table file.
 
         Parameters
@@ -297,51 +321,54 @@ class TableFile(object):
             progbar = FloatProgress(min=0, max=100)
             display(progbar)
         start_time = time()
-        if (NSTEPS == 0):
+        if NSTEPS == 0:
             NSTEPS = self.MAX_NSTEPS
-        self._set_ckey(select_ckeys, max_vector_dim)   # set the ckeys to read
-        self._initialize_dic(NSTEPS)   # allocate dictionary
-        self.gotostep(start_step)   # jump to the starting step
+        self._set_ckey(select_ckeys, max_vector_dim)  # set the ckeys to read
+        self._initialize_dic(NSTEPS)  # allocate dictionary
+        self.gotostep(start_step)  # jump to the starting step
 
         # read NSTEPS of the file
         progbar_step = max(100000, int(0.005 * NSTEPS))
         for step in range(NSTEPS):
             line = self.file.readline()
-            if len(line) == 0:   # EOF
-                log.write_log('Warning:  reached EOF.')
+            if len(line) == 0:  # EOF
+                log.write_log("Warning:  reached EOF.")
                 break
             values = np.array(line.split())
-            for key, idx in self.ckey.items():   # save the selected columns
+            for key, idx in self.ckey.items():  # save the selected columns
                 self.data[key][step, :] = np.array(list(map(float, values[idx])))
-            if ((step + 1) % progbar_step == 0):
+            if (step + 1) % progbar_step == 0:
                 if self._GUI:
-                    progbar.value = float(step + 1) / NSTEPS * 100.
-                    progbar.description = '{:6.2f}%'.format(progbar.value)
+                    progbar.value = float(step + 1) / NSTEPS * 100.0
+                    progbar.description = "{:6.2f}%".format(progbar.value)
                 else:
-                    log.write_log('    step = {:9d} - {:6.2f}% completed'.format(step + 1,
-                                                                                 float(step + 1) / NSTEPS * 100.))
+                    log.write_log(
+                        "    step = {:9d} - {:6.2f}% completed".format(
+                            step + 1, float(step + 1) / NSTEPS * 100.0
+                        )
+                    )
 
         if self._GUI:
             progbar.close()
 
         # check number of steps read, keep an even number of steps
-        if (step + 1 < NSTEPS):
-            if (step == 0):
-                log.write_log('WARNING:  no step read.')
+        if step + 1 < NSTEPS:
+            if step == 0:
+                log.write_log("WARNING:  no step read.")
                 NSTEPS = 0
             else:
-                log.write_log('Warning:  less steps read.')
+                log.write_log("Warning:  less steps read.")
                 NSTEPS = step + 1
         if even_NSTEPS:
-            if (NSTEPS % 2 == 1):
+            if NSTEPS % 2 == 1:
                 NSTEPS = NSTEPS - 1
 
         # free not used memory
         for key, idx in self.ckey.items():
             self.data[key] = self.data[key][:NSTEPS, :]
-        log.write_log('  ( %d ) steps read.' % (NSTEPS))
+        log.write_log("  ( %d ) steps read." % (NSTEPS))
         self.NSTEPS = NSTEPS
 
         if self._print_elapsed:
-            log.write_log('DONE.  Elapsed time: ', time() - start_time, 'seconds')
+            log.write_log("DONE.  Elapsed time: ", time() - start_time, "seconds")
         return self.data

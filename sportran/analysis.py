@@ -4,31 +4,35 @@
 This module is the CLI of the library, that can be called after installing it from the command line
 """
 
-import os
-from sys import path, argv
 import argparse
+import os
+from sys import argv, path
+
 import numpy as np
 
 try:
     import sportran as st
 except ImportError:
     abs_path = os.path.abspath(__file__)
-    tc_path = abs_path[:abs_path.rfind('/')]
-    path.append(tc_path[:tc_path.rfind('/')])
+    tc_path = abs_path[: abs_path.rfind("/")]
+    path.append(tc_path[: tc_path.rfind("/")])
     try:
         import sportran as st
     except ImportError:
-        raise ImportError('Cannot locate sportran.')
+        raise ImportError("Cannot locate sportran.")
 
 from sportran.utils import log
 
-log.set_method('bash')
-log.append_method('file')
+log.set_method("bash")
+log.append_method("file")
 from sportran.plotter.cli import CLIPlotter
 
 st.current.Current.set_plotter(CLIPlotter)
-from sportran.plotter import plt   # this imports matplotlib.pyplot
-from sportran.plotter import addPlotToPdf, PdfPages
+from sportran.plotter import (
+    PdfPages,
+    addPlotToPdf,
+    plt,  # this imports matplotlib.pyplot
+)
 
 np.set_printoptions(precision=8)
 
@@ -195,14 +199,14 @@ def main():
 
 def concatenate_if_not_none_with_labels(concat, labels=None):
     out_arr = []
-    out_label = ''
+    out_label = ""
     if labels is None:
-        labels = ['' for i in concat]
+        labels = ["" for i in concat]
     for arr, label in zip(concat, labels):
         if arr is not None:
             out_arr.append(arr)
-            out_label += f' {label}'
-    return np.concatenate([out_arr], axis=1).transpose(), f'{out_label}\n'
+            out_label += f" {label}"
+    return np.concatenate([out_arr], axis=1).transpose(), f"{out_label}\n"
 
 
 def run_analysis(args):
@@ -229,10 +233,12 @@ def run_analysis(args):
     for parameter in st.current.all_parameters:
         p = getattr(args, parameter)
         if p is not None:
-            if p <= 0.:
-                raise ValueError(f'{parameter} must be positive')
+            if p <= 0.0:
+                raise ValueError(f"{parameter} must be positive")
             parameters[parameter] = p
-    parameters_from_input_file = args.parameters_from_input_file if args.parameters_from_input_file else []
+    parameters_from_input_file = (
+        args.parameters_from_input_file if args.parameters_from_input_file else []
+    )
     parameters_from_input_file_key = [x[0] for x in parameters_from_input_file]
     parameters_from_input_file_name = [x[1] for x in parameters_from_input_file]
     units = args.units
@@ -254,70 +260,76 @@ def run_analysis(args):
     print_cmd = not args.test_suite_run
     fmt = args.savetxt_format
 
-    if DT_FS <= 0.:
-        raise ValueError('Time step must be positive')
+    if DT_FS <= 0.0:
+        raise ValueError("Time step must be positive")
     if NSTEPS < 0:
-        raise ValueError('nsteps must be positive')
+        raise ValueError("nsteps must be positive")
     if resample:
         if TSKIP is not None:
             if TSKIP <= 1:
-                raise ValueError('Resampling: TSKIP should be > 1')
+                raise ValueError("Resampling: TSKIP should be > 1")
         elif FSTAR is not None:
-            if FSTAR <= 0.:
-                raise ValueError('Resampling: FSTAR should be positive')
+            if FSTAR <= 0.0:
+                raise ValueError("Resampling: FSTAR should be positive")
         else:
-            raise ValueError('Resampling: you should specify either TSKIP or FSTAR')
+            raise ValueError("Resampling: you should specify either TSKIP or FSTAR")
     elif TSKIP is not None:
-        raise ValueError('Use flag -r to resample. TSKIP will be ignored')
+        raise ValueError("Use flag -r to resample. TSKIP will be ignored")
     elif FSTAR is not None:
-        raise ValueError('Use flag -r to resample. FSTAR will be ignored')
-    if corr_factor <= 0.:
-        raise ValueError('The correction factor must be positive')
+        raise ValueError("Use flag -r to resample. FSTAR will be ignored")
+    if corr_factor <= 0.0:
+        raise ValueError("The correction factor must be positive")
     if NSPLIT < 1:
-        raise ValueError('The number of splits must be a positive number')
+        raise ValueError("The number of splits must be a positive number")
 
-    log.open_file(output + '.log')
+    log.open_file(output + ".log")
     if print_cmd:
-        log.write_log('Command:\n ' + ' '.join(argv) + '\n\n')
+        log.write_log("Command:\n " + " ".join(argv) + "\n\n")
 
     # Write some parameters
     if print_cmd:
-        log.write_log(' Input file ({}):      {}'.format(input_format, inputfile))
-    log.write_log(' Units:      {}'.format(units))
-    log.write_log(' Time step:      {} fs'.format(DT_FS))
+        log.write_log(" Input file ({}):      {}".format(input_format, inputfile))
+    log.write_log(" Units:      {}".format(units))
+    log.write_log(" Time step:      {} fs".format(DT_FS))
 
     # Read data
     selected_keys = [j1_key]
     selected_keys.extend(j2_keys)
     jdata = None
-    if input_format == 'table':
+    if input_format == "table":
         # Table format: data is organized in columns, the selected_keys determines which to read
-        #input parameters that are read from file
+        # input parameters that are read from file
         for col, pname in parameters_from_input_file:
             selected_keys.append(col)
-        jfile = st.i_o.TableFile(inputfile, group_vectors=True, print_elapsed=print_elapsed)
-        jfile.read_datalines(start_step=START_STEP, NSTEPS=NSTEPS, select_ckeys=selected_keys)
+        jfile = st.i_o.TableFile(
+            inputfile, group_vectors=True, print_elapsed=print_elapsed
+        )
+        jfile.read_datalines(
+            start_step=START_STEP, NSTEPS=NSTEPS, select_ckeys=selected_keys
+        )
         jdata = jfile.data
-        START_STEP = 0   # reset to zero, as later we will need to read all of jdata
+        START_STEP = 0  # reset to zero, as later we will need to read all of jdata
 
-    elif input_format == 'dict':
+    elif input_format == "dict":
         # Dict format: data is stored in a binary Numpy file containing a dictionary
         jdata = np.load(inputfile, allow_pickle=True).tolist()
 
-    elif input_format == 'lammps':
+    elif input_format == "lammps":
         # LAMMPS format: a LAMMPS log file is scanned until the run_keywork is found
         jfile = st.i_o.LAMMPSLogFile(inputfile, run_keyword=run_keyword)
         if args.TEMPERATURE is None:
-            selected_keys.append('Temp')
+            selected_keys.append("Temp")
         jfile.read_datalines(NSTEPS, select_ckeys=selected_keys)
         jdata = jfile.data
 
     else:
-        raise NotImplementedError('Input format not implemented.')
+        raise NotImplementedError("Input format not implemented.")
 
     # split data
     if NSPLIT > 1:
-        log.write_log('Splitting input data time series into {:d} segments...'.format(NSPLIT))
+        log.write_log(
+            "Splitting input data time series into {:d} segments...".format(NSPLIT)
+        )
         data_size = jdata[selected_keys[0]].shape[0]
         if len(jdata[selected_keys[0]].shape) > 1:
             n_proc = jdata[selected_keys[0]].shape[1]
@@ -329,24 +341,30 @@ def run_analysis(args):
         if (steps_end % 2) == 1:
             steps_end = steps_end - 1
         for key, value in jdata.items():
-            if not key in parameters_from_input_file_key:
-                newdata = value[:steps_start].reshape((NSPLIT, data_size / NSPLIT, n_proc)).transpose(
-                    (1, 0, 2)).reshape((data_size / NSPLIT, NSPLIT * n_proc))
+            if key not in parameters_from_input_file_key:
+                newdata = (
+                    value[:steps_start]
+                    .reshape((NSPLIT, data_size / NSPLIT, n_proc))
+                    .transpose((1, 0, 2))
+                    .reshape((data_size / NSPLIT, NSPLIT * n_proc))
+                )
                 jdata[key] = newdata[:steps_end]
-        log.write_log('New shape of input data: {}'.format(jdata[selected_keys[0]].shape))
+        log.write_log(
+            "New shape of input data: {}".format(jdata[selected_keys[0]].shape)
+        )
 
     if NSTEPS == 0:
         NSTEPS = jdata[list(jdata.keys())[0]].shape[0]
 
     # compute average parameters from input file, if requested
-    def average(data, name, units=''):
+    def average(data, name, units=""):
         ave = np.mean(data)
         std = np.std(data)
-        log.write_log(f'Mean {name} (computed): {ave} +/- {std}')
+        log.write_log(f"Mean {name} (computed): {ave} +/- {std}")
         return ave
 
     for key, value in parameters.items():
-        log.write_log(f'{key} (input): {value}')
+        log.write_log(f"{key} (input): {value}")
     for key, name in parameters_from_input_file:
         parameters[name] = average(jdata[key], name)
         selected_keys.remove(key)
@@ -354,59 +372,72 @@ def run_analysis(args):
     if structurefile is not None:
         # read volume from LAMMPS data file
         _, volume = st.i_o.read_lammps_datafile.get_box(structurefile)
-        log.write_log(' Volume (structure file):    {} A^3'.format(volume))
-        #note: here I hardcoded the volume key
+        log.write_log(" Volume (structure file):    {} A^3".format(volume))
+        # note: here I hardcoded the volume key
         #      nothing guarantees that in the parameter list
         #      of the function that calculates KAPPA_SCALE
         #      you are going to find the VOLUME parameter with this meaning
-        parameters['VOLUME'] = volume
+        parameters["VOLUME"] = volume
 
     # Time step
-    log.write_log(' Time step (input):  {} fs'.format(DT_FS))
+    log.write_log(" Time step (input):  {} fs".format(DT_FS))
 
     # Define currents
     if jindex is None:
         # read all components
-        currents = np.array([jdata[key][START_STEP:(START_STEP + NSTEPS), :] for key in selected_keys])
+        currents = np.array(
+            [jdata[key][START_STEP : (START_STEP + NSTEPS), :] for key in selected_keys]
+        )
     else:
         # read only the components jindex
         # NOTE: for multi-current cases, it will select jindex of each current
         if sindex is None:
-            currents = np.array([jdata[key][START_STEP:(START_STEP + NSTEPS), jindex] for key in selected_keys])
+            currents = np.array(
+                [
+                    jdata[key][START_STEP : (START_STEP + NSTEPS), jindex]
+                    for key in selected_keys
+                ]
+            )
         else:
             # subtract the components sindex from those jindex
-            currents = np.array([
-                jdata[key][START_STEP:(START_STEP + NSTEPS), jindex] -
-                jdata[key][START_STEP:(START_STEP + NSTEPS), sindex] for key in selected_keys
-            ])
-    log.write_log('  currents shape is {}'.format(currents.shape))
-    log.write_log('snippet:')
+            currents = np.array(
+                [
+                    jdata[key][START_STEP : (START_STEP + NSTEPS), jindex]
+                    - jdata[key][START_STEP : (START_STEP + NSTEPS), sindex]
+                    for key in selected_keys
+                ]
+            )
+    log.write_log("  currents shape is {}".format(currents.shape))
+    log.write_log("snippet:")
     log.write_log(currents)
 
     # create Current object
-    j = st.current.all_currents[current_type][0](currents, DT_FS=DT_FS, UNITS=units, **parameters,
-                                                 PSD_FILTER_W=psd_filter_w)
+    j = st.current.all_currents[current_type][0](
+        currents, DT_FS=DT_FS, UNITS=units, **parameters, PSD_FILTER_W=psd_filter_w
+    )
 
-    log.write_log(' Number of currents = {}'.format(j.N_CURRENTS))
-    log.write_log(' Number of equivalent components = {}'.format(j.N_EQUIV_COMPONENTS))
-    log.write_log(' KAPPA_SCALE = {}'.format(j.KAPPA_SCALE))
-    log.write_log(' Nyquist_f   = {}  THz'.format(j.Nyquist_f_THz))
+    log.write_log(" Number of currents = {}".format(j.N_CURRENTS))
+    log.write_log(" Number of equivalent components = {}".format(j.N_EQUIV_COMPONENTS))
+    log.write_log(" KAPPA_SCALE = {}".format(j.KAPPA_SCALE))
+    log.write_log(" Nyquist_f   = {}  THz".format(j.Nyquist_f_THz))
 
     # resample
     if resample:
         if TSKIP is not None:
             jf = j.resample(TSKIP=TSKIP, PSD_FILTER_W=psd_filter_w)
-            #FSTAR = j.Nyquist_f_THz / TSKIP   # from st.heatcurrent.resample_current
+            # FSTAR = j.Nyquist_f_THz / TSKIP   # from st.heatcurrent.resample_current
             FSTAR = jf.Nyquist_f_THz
         else:
             jf = j.resample(fstar_THz=FSTAR, PSD_FILTER_W=psd_filter_w)
-        #log.write_log(jf.resample_log)
+        # log.write_log(jf.resample_log)
     else:
         jf = j
 
     # cepstral analysis
-    jf.cepstral_analysis(aic_type='aic', aic_Kmin_corrfactor=corr_factor, manual_cutoffK=manual_cutoffK)
-    #log.write_log(jf.cepstral_log)
+    jf.cepstral_analysis(
+        aic_type="aic", aic_Kmin_corrfactor=corr_factor, manual_cutoffK=manual_cutoffK
+    )
+    # log.write_log(jf.cepstral_log)
 
     ############################################################################
     ## OUTPUT SECTION
@@ -452,7 +483,9 @@ def run_analysis(args):
         binoutobj.jf_cepf_logtau = jf.cepf.logtau
         binoutobj.jf_cepf_logtau_THEORY_std = jf.cepf.logtau_THEORY_std
         binoutobj.jf_cepf_kappa = jf.cepf.tau * jf.KAPPA_SCALE * 0.5
-        binoutobj.jf_cepf_kappa_THEORY_std = jf.cepf.tau_THEORY_std * jf.KAPPA_SCALE * 0.5
+        binoutobj.jf_cepf_kappa_THEORY_std = (
+            jf.cepf.tau_THEORY_std * jf.KAPPA_SCALE * 0.5
+        )
         binoutobj.jf_cepf_aic_Kmin = jf.cepf.aic_Kmin
         binoutobj.jf_cepf_aic_Kmin_corrfactor = jf.cepf.aic_Kmin_corrfactor
         binoutobj.jf_cepf_cutoffK = jf.cepf.cutoffK
@@ -465,40 +498,67 @@ def run_analysis(args):
             np.save(output, binoutobj)
 
     if not no_text_out:
-        outfile_name = output + '.psd.dat'
+        outfile_name = output + ".psd.dat"
         outarray, outfile_header = concatenate_if_not_none_with_labels(
-            [j.freqs_THz, j.psd, j.fpsd, j.logpsd, j.flogpsd], ['freqs_THz', 'psd', 'fpsd', 'logpsd', 'flogpsd'])
+            [j.freqs_THz, j.psd, j.fpsd, j.logpsd, j.flogpsd],
+            ["freqs_THz", "psd", "fpsd", "logpsd", "flogpsd"],
+        )
         np.savetxt(outfile_name, outarray, header=outfile_header, fmt=fmt)
         if j.MANY_CURRENTS:
-            outfile_name = output + '.cospectrum.dat'
-            outarray = np.c_[j.freqs_THz,
-                             j.cospectrum.reshape(
-                                 (j.cospectrum.shape[0] * j.cospectrum.shape[1], j.cospectrum.shape[2])).transpose()]
-            np.savetxt(outfile_name, np.column_stack([outarray.real, outarray.imag]), fmt=fmt)
+            outfile_name = output + ".cospectrum.dat"
+            outarray = np.c_[
+                j.freqs_THz,
+                j.cospectrum.reshape(
+                    (
+                        j.cospectrum.shape[0] * j.cospectrum.shape[1],
+                        j.cospectrum.shape[2],
+                    )
+                ).transpose(),
+            ]
+            np.savetxt(
+                outfile_name, np.column_stack([outarray.real, outarray.imag]), fmt=fmt
+            )
 
-            outfile_name = output + '.cospectrum.filt.dat'
+            outfile_name = output + ".cospectrum.filt.dat"
             if j.fcospectrum is not None:
-                outarray = np.c_[j.freqs_THz,
-                                 j.fcospectrum.reshape((j.fcospectrum.shape[0] * j.fcospectrum.shape[1],
-                                                        j.fcospectrum.shape[2])).transpose()]
-                np.savetxt(outfile_name, np.column_stack([outarray.real, outarray.imag]), fmt=fmt)
+                outarray = np.c_[
+                    j.freqs_THz,
+                    j.fcospectrum.reshape(
+                        (
+                            j.fcospectrum.shape[0] * j.fcospectrum.shape[1],
+                            j.fcospectrum.shape[2],
+                        )
+                    ).transpose(),
+                ]
+                np.savetxt(
+                    outfile_name,
+                    np.column_stack([outarray.real, outarray.imag]),
+                    fmt=fmt,
+                )
 
         if resample:
-            outfile_name = output + '.resampled_psd.dat'
+            outfile_name = output + ".resampled_psd.dat"
             outarray, outfile_header = concatenate_if_not_none_with_labels(
                 [jf.freqs_THz, jf.psd, jf.fpsd, jf.logpsd, jf.flogpsd],
-                ['freqs_THz', 'psd', 'fpsd', 'logpsd', 'flogpsd'])
+                ["freqs_THz", "psd", "fpsd", "logpsd", "flogpsd"],
+            )
             np.savetxt(outfile_name, outarray, header=outfile_header, fmt=fmt)
 
-        outfile_name = output + '.cepstral.dat'
-        outarray = np.c_[jf.cepf.logpsdK, jf.cepf.logpsdK_THEORY_std, jf.cepf.logtau, jf.cepf.logtau_THEORY_std,
-                         jf.cepf.tau * jf.KAPPA_SCALE * 0.5, jf.cepf.tau_THEORY_std * jf.KAPPA_SCALE * 0.5]
-        outfile_header = 'ck  ck_std  L0(P*)  L0_std(P*)  kappa(P*)  kappa_std(P*)\n'
+        outfile_name = output + ".cepstral.dat"
+        outarray = np.c_[
+            jf.cepf.logpsdK,
+            jf.cepf.logpsdK_THEORY_std,
+            jf.cepf.logtau,
+            jf.cepf.logtau_THEORY_std,
+            jf.cepf.tau * jf.KAPPA_SCALE * 0.5,
+            jf.cepf.tau_THEORY_std * jf.KAPPA_SCALE * 0.5,
+        ]
+        outfile_header = "ck  ck_std  L0(P*)  L0_std(P*)  kappa(P*)  kappa_std(P*)\n"
         np.savetxt(outfile_name, outarray, header=outfile_header, fmt=fmt)
 
-        outfile_name = output + '.cepstrumfiltered_psd.dat'
+        outfile_name = output + ".cepstrumfiltered_psd.dat"
         outarray = np.c_[jf.freqs_THz, jf.cepf.psd, jf.cepf.logpsd]
-        outfile_header = 'freqs_THz  cepf_psd cepf_logpsd\n'
+        outfile_header = "freqs_THz  cepf_psd cepf_logpsd\n"
         np.savetxt(outfile_name, outarray, header=outfile_header, fmt=fmt)
 
     ####################################
@@ -506,7 +566,7 @@ def run_analysis(args):
     ####################################
 
     if do_plot:
-        pdf = PdfPages(output + '.plots.pdf')
+        pdf = PdfPages(output + ".plots.pdf")
 
         addPlotToPdf(j.plot_periodogram, pdf)
         if resample:
@@ -514,12 +574,33 @@ def run_analysis(args):
             ax[0].set_xlim([0, 2.5 * FSTAR])
             pdf.savefig()
             plt.close()
-        addPlotToPdf(j.plot_psd, pdf, jf, f_THz_max=args.plot_psd_max_THz, k_SI_max=args.plot_psd_max_kappa,
-                     k_tick=args.plot_psd_kappa_tick_interval, f_tick=args.plot_psd_THz_tick_interval)
-        addPlotToPdf(jf.plot_psd, pdf, f_THz_max=args.plot_psd_max_THz, k_SI_max=args.plot_psd_max_kappa,
-                     k_tick=args.plot_psd_kappa_tick_interval, f_tick=args.plot_psd_THz_tick_interval)
-        addPlotToPdf(jf.plot_psd, pdf, jf, jf, f_THz_max=args.plot_psd_max_THz, k_SI_max=args.plot_psd_max_kappa,
-                     k_tick=args.plot_psd_kappa_tick_interval, f_tick=args.plot_psd_THz_tick_interval)
+        addPlotToPdf(
+            j.plot_psd,
+            pdf,
+            jf,
+            f_THz_max=args.plot_psd_max_THz,
+            k_SI_max=args.plot_psd_max_kappa,
+            k_tick=args.plot_psd_kappa_tick_interval,
+            f_tick=args.plot_psd_THz_tick_interval,
+        )
+        addPlotToPdf(
+            jf.plot_psd,
+            pdf,
+            f_THz_max=args.plot_psd_max_THz,
+            k_SI_max=args.plot_psd_max_kappa,
+            k_tick=args.plot_psd_kappa_tick_interval,
+            f_tick=args.plot_psd_THz_tick_interval,
+        )
+        addPlotToPdf(
+            jf.plot_psd,
+            pdf,
+            jf,
+            jf,
+            f_THz_max=args.plot_psd_max_THz,
+            k_SI_max=args.plot_psd_max_kappa,
+            k_tick=args.plot_psd_kappa_tick_interval,
+            f_tick=args.plot_psd_THz_tick_interval,
+        )
         try:
             for idx1 in range(j.N_CURRENTS):
                 for idx2 in range(idx1, j.N_CURRENTS):
@@ -545,19 +626,24 @@ def run_analysis(args):
         # ax = jf.plot_kappa_Pstar()
         # ax.set_xlim([0, 10*jf.cepf.cutoffK])
 
-        addPlotToPdf(jf.plot_kappa_Pstar, pdf, pstar_max=args.plot_conv_max_pstar,
-                     pstar_tick=args.plot_conv_pstar_tick_interval, kappa_SI_max=args.plot_conv_max_kappa,
-                     kappa_tick=args.plot_conv_kappa_tick_interval)
+        addPlotToPdf(
+            jf.plot_kappa_Pstar,
+            pdf,
+            pstar_max=args.plot_conv_max_pstar,
+            pstar_tick=args.plot_conv_pstar_tick_interval,
+            kappa_SI_max=args.plot_conv_max_kappa,
+            kappa_tick=args.plot_conv_kappa_tick_interval,
+        )
 
         # plot cepstral log-PSD
         ax = jf.plot_periodogram()
-        jf.plot_cepstral_spectrum(axes=ax, label='cepstrum-filtered')
-        ax[0].axvline(x=jf.Nyquist_f_THz, ls='--', c='r')
-        ax[1].axvline(x=jf.Nyquist_f_THz, ls='--', c='r')
-        #ax[0].set_xlim([0., 2.5*FSTAR_THZ])
-        #ax[1].set_ylim([12,18])
-        #ax[0].legend(['original', 'resampled', 'cepstrum-filtered'])
-        #ax[1].legend(['original', 'resampled', 'cepstrum-filtered']);
+        jf.plot_cepstral_spectrum(axes=ax, label="cepstrum-filtered")
+        ax[0].axvline(x=jf.Nyquist_f_THz, ls="--", c="r")
+        ax[1].axvline(x=jf.Nyquist_f_THz, ls="--", c="r")
+        # ax[0].set_xlim([0., 2.5*FSTAR_THZ])
+        # ax[1].set_ylim([12,18])
+        # ax[0].legend(['original', 'resampled', 'cepstrum-filtered'])
+        # ax[1].legend(['original', 'resampled', 'cepstrum-filtered']);
 
         pdf.close()
 
@@ -570,7 +656,6 @@ def run_analysis(args):
 
 
 class TCOutput(object):
-
     # yapf: disable
     def __init__(self):
         # TO BE COMPLETED WIHT ALL PARAMETERS
@@ -617,31 +702,53 @@ class TCOutput(object):
     # yapf: enable
     def write_old_binary(self, output):
         """Write old binary format."""
-        opts = {'allow_pickle': False}
-        optsa = {'axis': 1}
+        opts = {"allow_pickle": False}
+        optsa = {"axis": 1}
         outarray, _ = concatenate_if_not_none_with_labels(
-            [self.j_freqs_THz, self.j_fpsd, self.j_flogpsd, self.j_psd, self.j_logpsd])
-        np.save(output + '.psd.npy', outarray, **opts)
+            [self.j_freqs_THz, self.j_fpsd, self.j_flogpsd, self.j_psd, self.j_logpsd]
+        )
+        np.save(output + ".psd.npy", outarray, **opts)
 
         if self.j_cospectrum is not None:
-            outarray = np.c_[self.j_freqs_THz, self.j_cospectrum.reshape(-1, self.j_cospectrum.shape[-1]).transpose()]
-            np.save(output + '.cospectrum.npy', outarray, **opts)
+            outarray = np.c_[
+                self.j_freqs_THz,
+                self.j_cospectrum.reshape(-1, self.j_cospectrum.shape[-1]).transpose(),
+            ]
+            np.save(output + ".cospectrum.npy", outarray, **opts)
 
         if self.j_fcospectrum is not None:
-            outarray = np.c_[self.j_freqs_THz, self.j_fcospectrum.reshape(-1, self.j_fcospectrum.shape[-1]).transpose()]
-            np.save(output + '.cospectrum.filt.npy', outarray, **opts)
+            outarray = np.c_[
+                self.j_freqs_THz,
+                self.j_fcospectrum.reshape(
+                    -1, self.j_fcospectrum.shape[-1]
+                ).transpose(),
+            ]
+            np.save(output + ".cospectrum.filt.npy", outarray, **opts)
 
         outarray, _ = concatenate_if_not_none_with_labels(
-            [self.jf_freqs_THz, self.jf_psd, self.jf_fpsd, self.jf_logpsd, self.jf_flogpsd])
-        np.save(output + '.resampled_psd.npy', outarray, **opts)
+            [
+                self.jf_freqs_THz,
+                self.jf_psd,
+                self.jf_fpsd,
+                self.jf_logpsd,
+                self.jf_flogpsd,
+            ]
+        )
+        np.save(output + ".resampled_psd.npy", outarray, **opts)
 
-        outarray = np.c_[self.jf_cepf_logpsdK, self.jf_cepf_logpsdK_THEORY_std, self.jf_cepf_logtau,
-                         self.jf_cepf_logtau_THEORY_std, self.jf_cepf_kappa, self.jf_cepf_kappa_THEORY_std]
-        np.save(output + '.cepstral', outarray, **opts)
+        outarray = np.c_[
+            self.jf_cepf_logpsdK,
+            self.jf_cepf_logpsdK_THEORY_std,
+            self.jf_cepf_logtau,
+            self.jf_cepf_logtau_THEORY_std,
+            self.jf_cepf_kappa,
+            self.jf_cepf_kappa_THEORY_std,
+        ]
+        np.save(output + ".cepstral", outarray, **opts)
 
         outarray = np.c_[self.jf_freqs_THz, self.jf_cepf_psd, self.jf_cepf_logpsd]
-        np.save(output + '.cepstrumfiltered_psd', outarray, **opts)
+        np.save(output + ".cepstrumfiltered_psd", outarray, **opts)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

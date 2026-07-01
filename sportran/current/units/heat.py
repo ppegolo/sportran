@@ -11,7 +11,12 @@ def scale_kappa_real(TEMPERATURE, VOLUME):
     VOLUME      cell VOLUME [A^3]
     The input current is in units of kcal/mole * Angstrom/femtosecond. Current is EXTENSIVE
     """
-    return (constants.kcal / constants.NA / TEMPERATURE) ** 2 / constants.kB / VOLUME * 100.0
+    return (
+        (constants.kcal / constants.NA / TEMPERATURE) ** 2
+        / constants.kB
+        / VOLUME
+        * 100.0
+    )
 
 
 def scale_kappa_metal(TEMPERATURE, VOLUME):
@@ -58,4 +63,11 @@ def scale_kappa_gpumd(TEMPERATURE, VOLUME):
     Therefore, units for square velocity are [eV/amu].
     The input current is in units of eV ^ {3/2} / atomic_mass_unit ^ {1/2}. Current is EXTENSIVE
     """
-    return (constants.charge) ** 3 / (TEMPERATURE) ** 2 / constants.massunit / constants.kB / VOLUME * 1.0e8
+    return (
+        (constants.charge) ** 3
+        / (TEMPERATURE) ** 2
+        / constants.massunit
+        / constants.kB
+        / VOLUME
+        * 1.0e8
+    )

@@ -136,7 +136,9 @@ def plot_periodogram(
             axes[1].set_xlim([0.0, current.Nyquist_f_THz])
             axes[1].set_xlabel(r"$f$ [THz]")
     elif freq_units == "red":
-        axes[0].plot(current.freqs / freq_scale, psd_scale * current.fpsd, **plot_kwargs)
+        axes[0].plot(
+            current.freqs / freq_scale, psd_scale * current.fpsd, **plot_kwargs
+        )
         axes[0].set_xlim([0.0, 0.5 / freq_scale])
         if mode == "log":
             axes[1].plot(current.freqs / freq_scale, current.flogpsd, **plot_kwargs)
@@ -189,14 +191,18 @@ def plot_cospectrum_component(
     )
 
     if f_THz_max is None:
-        f_THz_max = current.freqs_THz[_index_cumsum(np.abs(current.fcospectrum[idx1][idx2]), 0.95)]
+        f_THz_max = current.freqs_THz[
+            _index_cumsum(np.abs(current.fcospectrum[idx1][idx2]), 0.95)
+        ]
     else:
         f_THz_max = min(f_THz_max, current.freqs_THz[-1])
     axis.set_xlim([0, f_THz_max])
     if k_SI_max is None:
         k_SI_max = (
             np.max(
-                np.abs(current.fcospectrum[idx1][idx2])[: int(current.NFREQS * f_THz_max / current.freqs_THz[-1])]
+                np.abs(current.fcospectrum[idx1][idx2])[
+                    : int(current.NFREQS * f_THz_max / current.freqs_THz[-1])
+                ]
                 * current.KAPPA_SCALE
                 * 0.5
             )
@@ -261,7 +267,9 @@ def plot_L0_Pstar(current, *, axis=None, label=None, FIGSIZE=None):
     if axis is None:
         figure, axis = plt.subplots(1, figsize=FIGSIZE)
     color = next(iter_colors)  # quick fix to avoid error with mlp>=3.8
-    axis.plot(np.arange(current.NFREQS) + 1, current.cepf.logtau, ".-", c=color, label=label)
+    axis.plot(
+        np.arange(current.NFREQS) + 1, current.cepf.logtau, ".-", c=color, label=label
+    )
     axis.plot(
         np.arange(current.NFREQS) + 1,
         current.cepf.logtau + current.cepf.logtau_THEORY_std,
@@ -278,10 +286,14 @@ def plot_L0_Pstar(current, *, axis=None, label=None, FIGSIZE=None):
     axis.axvline(x=current.cepf.cutoffK + 1, ls="--", c=color)
     axis.set_xlim([0, 3 * current.cepf.cutoffK])
     max_y = np.amax(
-        (current.cepf.logtau + current.cepf.logtau_THEORY_std)[current.cepf.cutoffK : 3 * current.cepf.cutoffK]
+        (current.cepf.logtau + current.cepf.logtau_THEORY_std)[
+            current.cepf.cutoffK : 3 * current.cepf.cutoffK
+        ]
     )
     min_y = np.amin(
-        (current.cepf.logtau - current.cepf.logtau_THEORY_std)[current.cepf.cutoffK : 3 * current.cepf.cutoffK]
+        (current.cepf.logtau - current.cepf.logtau_THEORY_std)[
+            current.cepf.cutoffK : 3 * current.cepf.cutoffK
+        ]
     )
     axis.set_ylim([min_y * 0.8, max_y * 1.2])
     axis.set_xlabel(r"$P^*$")
@@ -337,13 +349,17 @@ def plot_kappa_Pstar(
         kappa_SI_max = 1.2 * np.amax(
             current.KAPPA_SCALE
             * 0.5
-            * (current.cepf.tau + current.cepf.tau_THEORY_std)[current.cepf.cutoffK : pstar_max]
+            * (current.cepf.tau + current.cepf.tau_THEORY_std)[
+                current.cepf.cutoffK : pstar_max
+            ]
         )
     if kappa_SI_min is None:
         kappa_SI_min = 0.8 * np.amin(
             current.KAPPA_SCALE
             * 0.5
-            * (current.cepf.tau - current.cepf.tau_THEORY_std)[current.cepf.cutoffK : pstar_max]
+            * (current.cepf.tau - current.cepf.tau_THEORY_std)[
+                current.cepf.cutoffK : pstar_max
+            ]
         )
     axis.set_ylim([kappa_SI_min, kappa_SI_max])
     axis.set_xlabel(r"$P^*$")
@@ -402,7 +418,9 @@ def plot_cepstral_spectrum(
             axes[1].set_xlim([0.0, current.Nyquist_f_THz])
             axes[1].set_xlabel(r"$f$ [THz]")
     elif freq_units == "red":
-        axes[0].plot(current.freqs / freq_scale, current.cepf.psd * psd_scale, **plot_kwargs)
+        axes[0].plot(
+            current.freqs / freq_scale, current.cepf.psd * psd_scale, **plot_kwargs
+        )
         axes[0].set_xlim([0.0, 0.5 / freq_scale])
         if mode == "log":
             axes[1].plot(current.freqs / freq_scale, current.cepf.logpsd, **plot_kwargs)
@@ -424,7 +442,15 @@ def plot_cepstral_spectrum(
     return axes
 
 
-def plot_fstar_analysis(currents, FSTAR_THZ_LIST, original_current=None, *, axes=None, FIGSIZE=None, **plot_kwargs):
+def plot_fstar_analysis(
+    currents,
+    FSTAR_THZ_LIST,
+    original_current=None,
+    *,
+    axes=None,
+    FIGSIZE=None,
+    **plot_kwargs,
+):
     """
     Plots kappa(P*) as a function of the f*.
     """
@@ -469,7 +495,9 @@ def plot_fstar_analysis(currents, FSTAR_THZ_LIST, original_current=None, *, axes
         return currents, axes
 
 
-def plot_resample(x, xf, PSD_FILTER_W=None, *, freq_units="THz", axes=None, FIGSIZE=None, mode="log"):
+def plot_resample(
+    x, xf, PSD_FILTER_W=None, *, freq_units="THz", axes=None, FIGSIZE=None, mode="log"
+):
     """
     Plot periodograms of original and filtered/resampled series.
 
@@ -534,7 +562,9 @@ def plot_resample(x, xf, PSD_FILTER_W=None, *, freq_units="THz", axes=None, FIGS
 ## DUPLICATE FUNCTIONS THAT NEED TO BE MERGED IF POSSIBLE
 
 
-def plot_psd(jf, j2=None, j2pl=None, f_THz_max=None, k_SI_max=None, k_tick=None, f_tick=None):
+def plot_psd(
+    jf, j2=None, j2pl=None, f_THz_max=None, k_SI_max=None, k_tick=None, f_tick=None
+):
     """Plot legacy PSD view for filtered and optional comparison datasets."""
     if f_THz_max is None:
         idx_max = _index_cumsum(jf.psd, 0.95)
@@ -552,7 +582,12 @@ def plot_psd(jf, j2=None, j2pl=None, f_THz_max=None, k_SI_max=None, k_tick=None,
 
     if k_SI_max is None:
         k_SI_max = (
-            np.max(jf.fpsd[: int(jf.freqs_THz.shape[0] * f_THz_max / jf.freqs_THz[-1])] * jf.KAPPA_SCALE * 0.5) * 1.3
+            np.max(
+                jf.fpsd[: int(jf.freqs_THz.shape[0] * f_THz_max / jf.freqs_THz[-1])]
+                * jf.KAPPA_SCALE
+                * 0.5
+            )
+            * 1.3
         )
 
     figure, ax = plt.subplots(1, 1)  # figsize=(3.8, 2.3)

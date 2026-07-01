@@ -4,39 +4,37 @@ This module is supposed to implement a SportranBinaryFile, but it is not ready.
 See:  https://github.com/sissaschool/sportran/issues/37
 """
 
-from sportran.utils.attributedict import AttributeDict
-from sportran.current import Current
 import pickle
 
-__all__ = ['SportranBinaryFile', 'SportranInput', 'SportranOutput', 'SportranSettings']
+from sportran.current import Current
+from sportran.utils.attributedict import AttributeDict
+
+__all__ = ["SportranBinaryFile", "SportranInput", "SportranOutput", "SportranSettings"]
 
 
 def multi_pickle_dump(self, filename, **objs):
     # dump a dictionary of all the passed objects
-    pickle.dump(objs, open(filename, 'wb'))
+    pickle.dump(objs, open(filename, "wb"))
 
 
 def multi_pickle_load(self, filename):
     # return a dictionary of all the stored objects
-    return pickle.load(open(filename, 'rb'))
+    return pickle.load(open(filename, "rb"))
 
 
 class SportranInput(AttributeDict):
-
     pass
 
 
 class SportranOutput(AttributeDict):
-
     pass
 
 
 class SportranSettings(AttributeDict):
-
     pass
 
 
-class SportranBinaryFile():
+class SportranBinaryFile:
     """
     A SporTran Binary File object, that stores information about a SporTran calculation, its inputs, data, and outputs.
     The data stored can be used to restore a calculation that was previously run.
@@ -53,13 +51,19 @@ class SportranBinaryFile():
         :method: dump(filename)
     """
 
-    _storable_attrs = ('input_parameters', 'settings', 'current', 'current_resampled', 'output_results')
+    _storable_attrs = (
+        "input_parameters",
+        "settings",
+        "current",
+        "current_resampled",
+        "output_results",
+    )
 
     def __init__(self, **kwargs):
         for key in self._storable_attrs:
             self.__setattr__(key, kwargs.pop(key, None))
         if kwargs:
-            raise ValueError('Keys {} are not valid.'.format(kwargs.keys()))
+            raise ValueError("Keys {} are not valid.".format(kwargs.keys()))
 
     @classmethod
     def load(cls, filename):
@@ -69,7 +73,9 @@ class SportranBinaryFile():
     def dump(self, filename):
         """Dump SporTran data to a binary file."""
         multi_pickle_dump(filename, **{key: self.key for key in self._storable_attrs})
-        print(f'Binary file "{filename}" successfully created, with the following data:')
+        print(
+            f'Binary file "{filename}" successfully created, with the following data:'
+        )
         print([key for key in self._storable_attrs if key is not None])
 
     @property

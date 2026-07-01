@@ -21,7 +21,7 @@ def integrate_acf(acf):
 ## functions copied from statstools.tsa
 
 
-def acovf(x, unbiased=False, demean=True, fft=False, missing='none'):
+def acovf(x, unbiased=False, demean=True, fft=False, missing="none"):
     """
     Autocovariance for 1D
 
@@ -52,29 +52,29 @@ def acovf(x, unbiased=False, demean=True, fft=False, missing='none'):
     """
     x = np.squeeze(np.asarray(x))
     if x.ndim > 1:
-        raise ValueError('x must be 1d. Got %d dims.' % x.ndim)
+        raise ValueError("x must be 1d. Got %d dims." % x.ndim)
 
     missing = missing.lower()
-    if missing not in ['none', 'raise', 'conservative', 'drop']:
-        raise ValueError('missing option %s not understood' % missing)
-    if missing == 'none':
+    if missing not in ["none", "raise", "conservative", "drop"]:
+        raise ValueError("missing option %s not understood" % missing)
+    if missing == "none":
         deal_with_masked = False
     else:
         deal_with_masked = has_missing(x)
     if deal_with_masked:
-        if missing == 'raise':
-            raise MissingDataError('NaNs were encountered in the data')
-        notmask_bool = ~np.isnan(x)   #bool
-        if missing == 'conservative':
+        if missing == "raise":
+            raise MissingDataError("NaNs were encountered in the data")
+        notmask_bool = ~np.isnan(x)  # bool
+        if missing == "conservative":
             x[~notmask_bool] = 0
-        else:   #'drop'
-            x = x[notmask_bool]   #copies non-missing
-        notmask_int = notmask_bool.astype(int)   #int
+        else:  #'drop'
+            x = x[notmask_bool]  # copies non-missing
+        notmask_int = notmask_bool.astype(int)  # int
 
     if demean and deal_with_masked:
         # whether 'drop' or 'conservative':
         xo = x - x.sum() / notmask_int.sum()
-        if missing == 'conservative':
+        if missing == "conservative":
             xo[~notmask_bool] = 0
     elif demean:
         xo = x - x.mean()
@@ -82,35 +82,37 @@ def acovf(x, unbiased=False, demean=True, fft=False, missing='none'):
         xo = x
 
     n = len(x)
-    if unbiased and deal_with_masked and missing == 'conservative':
-        d = np.correlate(notmask_int, notmask_int, 'full')
+    if unbiased and deal_with_masked and missing == "conservative":
+        d = np.correlate(notmask_int, notmask_int, "full")
     elif unbiased:
         xi = np.arange(1, n + 1)
         d = np.hstack((xi, xi[:-1][::-1]))
-    elif deal_with_masked:   #biased and NaNs given and ('drop' or 'conservative')
+    elif deal_with_masked:  # biased and NaNs given and ('drop' or 'conservative')
         d = notmask_int.sum() * np.ones(2 * n - 1)
-    else:   #biased and no NaNs or missing=='none'
+    else:  # biased and no NaNs or missing=='none'
         d = n * np.ones(2 * n - 1)
 
     if fft:
         nobs = len(xo)
         n = _next_regular(2 * nobs + 1)
         Frf = np.fft.fft(xo, n=n)
-        acov = np.fft.ifft(Frf * np.conjugate(Frf))[:nobs] / d[nobs - 1:]
+        acov = np.fft.ifft(Frf * np.conjugate(Frf))[:nobs] / d[nobs - 1 :]
         acov = acov.real
     else:
-        acov = (np.correlate(xo, xo, 'full') / d)[n - 1:]
+        acov = (np.correlate(xo, xo, "full") / d)[n - 1 :]
 
-    if deal_with_masked and missing == 'conservative':
+    if deal_with_masked and missing == "conservative":
         # restore data for the user
         x[~notmask_bool] = np.nan
 
     return acov
 
 
-#see for example
+# see for example
 # http://www.itl.nist.gov/div898/handbook/eda/section3/autocopl.htm
-def acf(x, unbiased=False, nlags=40, qstat=False, fft=False, alpha=None, missing='none'):
+def acf(
+    x, unbiased=False, nlags=40, qstat=False, fft=False, alpha=None, missing="none"
+):
     """
     Autocorrelation function for 1d arrays.
 
@@ -164,22 +166,22 @@ def acf(x, unbiased=False, nlags=40, qstat=False, fft=False, alpha=None, missing
     amplitude modulation", Sankhya: The Indian Journal of Statistics, Series A.
 
     """
-    nobs = len(x)   # should this shrink for missing='drop' and NaNs in x?
+    nobs = len(x)  # should this shrink for missing='drop' and NaNs in x?
     avf = acovf(x, unbiased=unbiased, demean=True, fft=fft, missing=missing)
-    acf = avf[:nlags + 1] / avf[0]
+    acf = avf[: nlags + 1] / avf[0]
     if not (qstat or alpha):
         return acf
     if alpha is not None:
         varacf = np.ones(nlags + 1) / nobs
         varacf[0] = 0
-        varacf[1] = 1. / nobs
-        varacf[2:] *= 1 + 2 * np.cumsum(acf[1:-1]**2)
-        interval = stats.norm.ppf(1 - alpha / 2.) * np.sqrt(varacf)
+        varacf[1] = 1.0 / nobs
+        varacf[2:] *= 1 + 2 * np.cumsum(acf[1:-1] ** 2)
+        interval = stats.norm.ppf(1 - alpha / 2.0) * np.sqrt(varacf)
         confint = np.array(lzip(acf - interval, acf + interval))
         if not qstat:
             return acf, confint
     if qstat:
-        qstat, pvalue = q_stat(acf[1:], nobs=nobs)   # drop lag 0
+        qstat, pvalue = q_stat(acf[1:], nobs=nobs)  # drop lag 0
         if alpha is not None:
             return acf, confint, qstat, pvalue
         else:
@@ -187,7 +189,7 @@ def acf(x, unbiased=False, nlags=40, qstat=False, fft=False, alpha=None, missing
 
 
 def ccovf(x, y, unbiased=True, demean=True):
-    ''' crosscovariance for 1D
+    """crosscovariance for 1D
 
     Parameters
     ----------
@@ -205,7 +207,7 @@ def ccovf(x, y, unbiased=True, demean=True):
     -----
     This uses np.correlate which does full convolution. For very long time
     series it is recommended to use fft convolution instead.
-    '''
+    """
     n = len(x)
     if demean:
         xo = x - x.mean()
@@ -215,14 +217,14 @@ def ccovf(x, y, unbiased=True, demean=True):
         yo = y
     if unbiased:
         xi = np.ones(n)
-        d = np.correlate(xi, xi, 'full')
+        d = np.correlate(xi, xi, "full")
     else:
         d = n
-    return (np.correlate(xo, yo, 'full') / d)[n - 1:]
+    return (np.correlate(xo, yo, "full") / d)[n - 1 :]
 
 
 def ccf(x, y, unbiased=True):
-    '''cross-correlation function for 1d
+    """cross-correlation function for 1d
 
     Parameters
     ----------
@@ -244,7 +246,7 @@ def ccf(x, y, unbiased=True):
     If unbiased is true, the denominator for the autocovariance is adjusted
     but the autocorrelation is not an unbiased estimtor.
 
-    '''
+    """
     cvf = ccovf(x, y, unbiased=unbiased, demean=True)
     return cvf / (np.std(x) * np.std(y))
 
@@ -272,7 +274,7 @@ def _next_regular(target):
     if not (target & (target - 1)):
         return target
 
-    match = float('inf')   # Anything found will be smaller
+    match = float("inf")  # Anything found will be smaller
     p5 = 1
     while p5 < target:
         p35 = p5
@@ -282,10 +284,10 @@ def _next_regular(target):
             quotient = -(-target // p35)
             # Quickly find next power of 2 >= quotient
             try:
-                p2 = 2**((quotient - 1).bit_length())
+                p2 = 2 ** ((quotient - 1).bit_length())
             except AttributeError:
                 # Fallback for Python <2.7
-                p2 = 2**_bit_length_26(quotient - 1)
+                p2 = 2 ** _bit_length_26(quotient - 1)
 
             N = p2 * p35
             if N == target:

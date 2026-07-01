@@ -1,21 +1,20 @@
 # -*- coding: utf-8 -*-
 # Methods to perform a bayesian estimation of the transport coefficients
 
-import numpy as np
+
 import emcee
+import numpy as np
 import scipy.special as sp
-from . import aic
+
+from sportran.utils import log
+
 from .cepstral import (
-    dct_coefficients,
+    CepstralFilter,
     dct_filter_psd,
     dct_filter_tau,
-    CepstralFilter,
     multicomp_cepstral_parameters,
 )
 from .tools.filter import runavefilter
-from sportran.utils import log
-from multiprocessing import Pool
-import time
 
 __all__ = ["BayesFilter"]
 EULER_GAMMA = (
@@ -290,7 +289,6 @@ class BayesFilter(object):
             if todo and sampler.iteration > 1000:
                 s_old = np.ones(n_parameters)
                 for i in range(100, int(sampler.iteration / 2) + 1, 100):
-
                     s = sampler.get_autocorr_time(tol=0, discard=i)
 
                     if np.all(abs((s - s_old) / s) * 100 < 5):
@@ -619,7 +617,6 @@ class BayesFilter(object):
             if todo and sampler.iteration % 500 == 0 and sampler.iteration > 1000:
                 s_old = np.ones(n_parameters)
                 for i in range(100, int(sampler.iteration / 2) + 1, 100):
-
                     s = sampler.get_autocorr_time(tol=0, discard=i)
 
                     if np.all(abs((s - s_old) / s) * 100 < 2):

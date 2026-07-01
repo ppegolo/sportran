@@ -33,19 +33,20 @@ To add a new current type and/or unit:
    - Add functions named ``scale_kappa_*``; the suffix becomes the unit name in
      user interfaces.
 """
+
 from .current import Current
+from .electric import *
 from .generic import *
 from .heat import *
-from .electric import *
 from .stress import *
 from .thermoelectric import *
 
 __all__ = [
-    'GenericCurrent',
-    'HeatCurrent',
-    'ElectricCurrent',
-    'StressCurrent',
-    'ThermoElectricCurrent',
+    "GenericCurrent",
+    "HeatCurrent",
+    "ElectricCurrent",
+    "StressCurrent",
+    "ThermoElectricCurrent",
 ]
 
 # define list of all classes with units defined
@@ -65,7 +66,7 @@ def _get_currents_with_units():
     all_parameters = []
     for k in _all:
         v = globals()[k]
-        att = getattr(v, '_current_type', None)
+        att = getattr(v, "_current_type", None)
         if att is not None:
             parameters = []
             units = []
@@ -83,7 +84,7 @@ def _get_currents_with_units():
 
 
 def _list_of_currents_and_units(verbose=False):
-    s = ''
+    s = ""
     for k, v_ in all_currents.items():
         v = v_[0]
         s += f"'{k}': {v._input_parameters}\n"
@@ -100,17 +101,17 @@ all_currents, all_units, all_parameters = _get_currents_with_units()
 
 def build_currents_units_table(col=9):
     """Print a table with the Current classes and the units implemented for each class"""
-    table = ''
-    table += ' ' * col
+    table = ""
+    table += " " * col
     for u in all_units:
         table += u[:col].ljust(col)
-    table += '\n'
+    table += "\n"
     for k, v in all_currents.items():
         table += k[:col].ljust(col)
         for unit in all_units:
             if unit in v[1]:
-                table += 'X'.ljust(col)
+                table += "X".ljust(col)
             else:
-                table += ' ' * col
-        table += '\n'
+                table += " " * col
+        table += "\n"
     return table

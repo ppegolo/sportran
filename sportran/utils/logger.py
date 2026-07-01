@@ -11,7 +11,9 @@ class PrintMethod:
     By default it is equivalent to a call to print()
     """
 
-    _print_func: ClassVar[Optional[Callable[..., None]]] = None  #: print function called by :func:`write_log`
+    _print_func: ClassVar[Optional[Callable[..., None]]] = (
+        None  #: print function called by :func:`write_log`
+    )
     _METHOD: ClassVar[list[str]] = ["bash"]  #: methods to call by :func:`write_log`
     lfile: ClassVar[Optional[IO[str]]] = None
 

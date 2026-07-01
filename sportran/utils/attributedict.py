@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 
-class AttributeDict(dict):   # pylint: disable=too-many-instance-attributes
+class AttributeDict(dict):  # pylint: disable=too-many-instance-attributes
     """
     This class internally stores values in a dictionary, but exposes
     the keys also as attributes, i.e. asking for attrdict.key
@@ -26,7 +26,7 @@ class AttributeDict(dict):   # pylint: disable=too-many-instance-attributes
 
     def __repr__(self):
         """Representation of the object."""
-        return f'{self.__class__.__name__}({dict.__repr__(self)})'
+        return f"{self.__class__.__name__}({dict.__repr__(self)})"
 
     def __getattr__(self, attr):
         """Read a key as an attribute.
@@ -45,7 +45,8 @@ class AttributeDict(dict):   # pylint: disable=too-many-instance-attributes
             self[attr] = value
         except KeyError:
             raise AttributeError(
-                f"AttributeError: '{attr}' is not a valid attribute of the object '{self.__class__.__name__}'")
+                f"AttributeError: '{attr}' is not a valid attribute of the object '{self.__class__.__name__}'"
+            )
 
     def __delattr__(self, attr):
         """Delete a key as an attribute.

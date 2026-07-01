@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 import numpy as np
+import opt_einsum
 import scipy.special as sp
+from scipy.linalg import cholesky
 
 # from scipy.special import multigammaln
 from scipy.optimize import minimize
-from scipy.linalg import cholesky
-import opt_einsum
+
 from sportran.utils import log
+
 from .tools.filter import runavefilter
 
 EULER_GAMMA = (
@@ -109,9 +111,9 @@ class MaxLikeFilter:
         """
         Ensure that all necessary parameters are set before running maxlike.
         """
-        assert (
-            self.n_parameters is not None
-        ), "Number of parameters (n_parameters) must be provided"
+        assert self.n_parameters is not None, (
+            "Number of parameters (n_parameters) must be provided"
+        )
         assert self.solver is not None, "Solver must be provided"
         assert self.data is not None, "`data` must be provided"
         assert self.log_like is not None, "Likelihood must be set"
@@ -234,12 +236,12 @@ class MaxLikeFilter:
         Validate the shape of the input data.
         """
         if len(self.data.shape) == 3:
-            assert (
-                self.log_like == self.log_likelihood_wishart
-            ), "Misshaped `data` for likelihood"
-            assert (
-                self.data.shape[0] == self.data.shape[1]
-            ), "Data for a Wishart estimate must be a (n,n,N) array."
+            assert self.log_like == self.log_likelihood_wishart, (
+                "Misshaped `data` for likelihood"
+            )
+            assert self.data.shape[0] == self.data.shape[1], (
+                "Data for a Wishart estimate must be a (n,n,N) array."
+            )
         elif len(self.data.shape) != 1:
             raise ValueError("`data` should be a 1D or 3D array")
 
@@ -251,9 +253,9 @@ class MaxLikeFilter:
             return n_parameters
         elif isinstance(n_parameters, (list, np.ndarray)):
             n_parameters = np.asarray(n_parameters)
-            assert np.issubdtype(
-                n_parameters.dtype, np.integer
-            ), "`n_parameters` must be an integer array-like"
+            assert np.issubdtype(n_parameters.dtype, np.integer), (
+                "`n_parameters` must be an integer array-like"
+            )
             log.write_log(
                 (
                     f"Optimal number of parameters between {n_parameters.min()} "

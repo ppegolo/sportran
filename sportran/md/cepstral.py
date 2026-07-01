@@ -1,15 +1,19 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from scipy.special import polygamma
 from scipy.fftpack import dct
-from .tools.spectrum import logtau_to_tau
-from . import aic
+from scipy.special import polygamma
+
 from sportran.utils import log
 
-__all__ = ['CepstralFilter']
+from . import aic
+from .tools.spectrum import logtau_to_tau
 
-EULER_GAMMA = 0.57721566490153286060651209008240243104215933593992   # Euler-Mascheroni constant
+__all__ = ["CepstralFilter"]
+
+EULER_GAMMA = (
+    0.57721566490153286060651209008240243104215933593992  # Euler-Mascheroni constant
+)
 
 
 def multicomp_cepstral_parameters(NF, N_EQUIV_COMPONENTS):
@@ -22,11 +26,19 @@ def multicomp_cepstral_parameters(NF, N_EQUIV_COMPONENTS):
 
     # variance of cepstral coefficients
     trigamma = polygamma(1, N_EQUIV_COMPONENTS)
-    ck_THEORY_var = 1. / N * np.concatenate(([2 * trigamma], [trigamma] * (NF - 2), [2 * trigamma]))
+    ck_THEORY_var = (
+        1.0
+        / N
+        * np.concatenate(([2 * trigamma], [trigamma] * (NF - 2), [2 * trigamma]))
+    )
 
     # bias of log(PSD)
-    psd_THEORY_mean = (polygamma(0, N_EQUIV_COMPONENTS) - np.log(N_EQUIV_COMPONENTS)) * np.ones(NF)
-    psd_THEORY_mean[0] = polygamma(0, 0.5 * N_EQUIV_COMPONENTS) - np.log(0.5 * N_EQUIV_COMPONENTS)
+    psd_THEORY_mean = (
+        polygamma(0, N_EQUIV_COMPONENTS) - np.log(N_EQUIV_COMPONENTS)
+    ) * np.ones(NF)
+    psd_THEORY_mean[0] = polygamma(0, 0.5 * N_EQUIV_COMPONENTS) - np.log(
+        0.5 * N_EQUIV_COMPONENTS
+    )
     psd_THEORY_mean[-1] = psd_THEORY_mean[0]
 
     return ck_THEORY_var, psd_THEORY_mean
@@ -34,19 +46,21 @@ def multicomp_cepstral_parameters(NF, N_EQUIV_COMPONENTS):
 
 def dct_coefficients(y):
     """Compute the normalized Discrete Cosine Transform coefficients of y.
-        yk = 0.5 * DCT(y) / (N-1)"""
-    yk = dct(y, type=1) / (y.size - 1) * 0.5   # normalization
+    yk = 0.5 * DCT(y) / (N-1)"""
+    yk = dct(y, type=1) / (y.size - 1) * 0.5  # normalization
     return yk
 
 
 def dct_filter_psd(y, K=None):
     # K=P*-1 is the maximum coefficient summed (c_k = 0 for k > K)
-    if (K >= y.size):
-        log.write_log('! Warning:  dct_filter_psd K value ({:}) out of range.'.format(K))
+    if K >= y.size:
+        log.write_log(
+            "! Warning:  dct_filter_psd K value ({:}) out of range.".format(K)
+        )
         return np.full(y.size, np.NaN)
     yk = dct(y, type=1)
     if K is not None:
-        yk[K + 1:] = 0.
+        yk[K + 1 :] = 0.0
     ynew = dct(yk, type=1) / (y.size - 1) * 0.5
     return ynew
 
@@ -101,12 +115,14 @@ class CepstralFilter(object):
     p_aic... = Bayesian AIC weighting stuff
     """
 
-    def __init__(self, samplelogpsd, ck_theory_var=None, psd_theory_mean=None, aic_type='aic'):
+    def __init__(
+        self, samplelogpsd, ck_theory_var=None, psd_theory_mean=None, aic_type="aic"
+    ):
 
         if not isinstance(samplelogpsd, np.ndarray):
-            raise TypeError('samplelogpsd should be an object of type numpy.ndarray')
+            raise TypeError("samplelogpsd should be an object of type numpy.ndarray")
         elif len(samplelogpsd.shape) != 1:
-            raise ValueError('samplelogpsd should be a 1-dimensional array.')
+            raise ValueError("samplelogpsd should be a 1-dimensional array.")
         self.samplelogpsd = samplelogpsd
         self.initialize_cepstral_distribution(ck_theory_var, psd_theory_mean)
 
@@ -117,35 +133,48 @@ class CepstralFilter(object):
         self.logpsdK = dct_coefficients(self.samplelogpsd)
 
         # estimate AIC and its minimum
-        if (aic_type == 'aic'):
+        if aic_type == "aic":
             self.aic = aic.dct_AIC(self.logpsdK, ck_theory_var)
-        elif (aic_type == 'aicc'):
+        elif aic_type == "aicc":
             self.aic = aic.dct_AICc(self.logpsdK, ck_theory_var)
         else:
-            raise ValueError('AIC type not valid.')
+            raise ValueError("AIC type not valid.")
         self.aic_type = aic_type
         self.aic_min = np.min(self.aic)
         self.aic_Kmin = np.argmin(self.aic)
-        if (self.aic_Kmin == 0):
-            log.write_log('! Warning:  aic_Kmin is zero. You may want to use a larger number of frequencies.')
+        if self.aic_Kmin == 0:
+            log.write_log(
+                "! Warning:  aic_Kmin is zero. You may want to use a larger number of frequencies."
+            )
         self.aic_Kmin_corrfactor = 1.0
         self.cutoffK = None
         self.manual_cutoffK_flag = False
 
     def __repr__(self):
-        msg = 'CepstralFilter:\n' + \
-              '  AIC type  = {:}\n'.format(self.aic_type) + \
-              '  AIC min   = {:f}\n'.format(self.aic_min) + \
-              '  AIC_Kmin  = {:d}\n'.format(self.aic_Kmin)
+        msg = (
+            "CepstralFilter:\n"
+            + "  AIC type  = {:}\n".format(self.aic_type)
+            + "  AIC min   = {:f}\n".format(self.aic_min)
+            + "  AIC_Kmin  = {:d}\n".format(self.aic_Kmin)
+        )
         if self.cutoffK is not None:
-            msg += \
-                '  AIC_Kmin_corrfactor = {:f}\n'.format(self.aic_Kmin_corrfactor) + \
-                '  cutoffK = (P*-1) = {:d} {:}\n'.format(self.cutoffK, '(manual)' if self.manual_cutoffK_flag else '(auto)') + \
-                '  L_0*   = {:15f} +/- {:10f}\n'.format(self.logtau_cutoffK, self.logtau_std_cutoffK) + \
-                '  S_0*   = {:15f} +/- {:10f}\n'.format(self.tau_cutoffK, self.tau_std_cutoffK)
+            msg += (
+                "  AIC_Kmin_corrfactor = {:f}\n".format(self.aic_Kmin_corrfactor)
+                + "  cutoffK = (P*-1) = {:d} {:}\n".format(
+                    self.cutoffK, "(manual)" if self.manual_cutoffK_flag else "(auto)"
+                )
+                + "  L_0*   = {:15f} +/- {:10f}\n".format(
+                    self.logtau_cutoffK, self.logtau_std_cutoffK
+                )
+                + "  S_0*   = {:15f} +/- {:10f}\n".format(
+                    self.tau_cutoffK, self.tau_std_cutoffK
+                )
+            )
         return msg
 
-    def initialize_cepstral_distribution(self, ck_theory_var=None, psd_theory_mean=None):
+    def initialize_cepstral_distribution(
+        self, ck_theory_var=None, psd_theory_mean=None
+    ):
         """
         Initialize the theoretical distribution of the cepstral coefficients.
         The samplelogpsd must has been already set.
@@ -176,14 +205,24 @@ class CepstralFilter(object):
             # ck THEORY variances:
             #    (pi^2)/3/N   for k = {0, N/2}
             #    (pi^2)/6/N   otherwise
-            self.logpsdK_THEORY_var = 1. / N * np.concatenate(
-                ([np.pi**2 / 3], [np.pi**2 / 6.] * (NF - 2), [np.pi**2 / 3]))
+            self.logpsdK_THEORY_var = (
+                1.0
+                / N
+                * np.concatenate(
+                    ([np.pi**2 / 3], [np.pi**2 / 6.0] * (NF - 2), [np.pi**2 / 3])
+                )
+            )
             self.logpsdK_THEORY_std = np.sqrt(self.logpsdK_THEORY_var)
             # logtau THEORY variances:  (we assume to be summing ck up to K, included)
             #    (pi^2)/3/N*(2*K+1)   for K = {0, N/2-1}
             #    (pi^2)/3             for K = N/2
-            self.logtau_THEORY_var = 1. / N * np.concatenate(
-                (np.pi**2 / 3. * (2 * np.arange(NF - 1) + 1), [np.pi**2 / 3. * N]))
+            self.logtau_THEORY_var = (
+                1.0
+                / N
+                * np.concatenate(
+                    (np.pi**2 / 3.0 * (2 * np.arange(NF - 1) + 1), [np.pi**2 / 3.0 * N])
+                )
+            )
             self.logtau_THEORY_std = np.sqrt(self.logtau_THEORY_var)
         else:
             self.logpsdK_THEORY_var = ck_theory_var
@@ -191,8 +230,12 @@ class CepstralFilter(object):
             self.logtau_THEORY_var = np.zeros(NF)
             self.logtau_THEORY_var[0] = self.logpsdK_THEORY_var[0]
             for K in range(1, NF - 1):
-                self.logtau_THEORY_var[K] = self.logtau_THEORY_var[K - 1] + 4. * self.logpsdK_THEORY_var[K]
-            self.logtau_THEORY_var[-1] = self.logtau_THEORY_var[-2] + self.logpsdK_THEORY_var[-1]
+                self.logtau_THEORY_var[K] = (
+                    self.logtau_THEORY_var[K - 1] + 4.0 * self.logpsdK_THEORY_var[K]
+                )
+            self.logtau_THEORY_var[-1] = (
+                self.logtau_THEORY_var[-2] + self.logpsdK_THEORY_var[-1]
+            )
             self.logtau_THEORY_std = np.sqrt(self.logtau_THEORY_var)
 
     def scan_filter_tau(self, cutoffK=None, aic_Kmin_corrfactor=1.0, correct_mean=True):
@@ -212,10 +255,10 @@ class CepstralFilter(object):
         """
         if cutoffK is not None:
             if not isinstance(cutoffK, int) or (cutoffK < 0):
-                raise ValueError('cutoffK must be a positive integer.')
+                raise ValueError("cutoffK must be a positive integer.")
             if aic_Kmin_corrfactor != 1.0:
                 raise ValueError(
-                    'If you specify cutoffK manually, the AIC will not be used, hence aic_Kmin_corrfactor will be ignored.'
+                    "If you specify cutoffK manually, the AIC will not be used, hence aic_Kmin_corrfactor will be ignored."
                 )
         self.aic_Kmin_corrfactor = aic_Kmin_corrfactor
 
@@ -226,19 +269,23 @@ class CepstralFilter(object):
             self.cutoffK = cutoffK
             self.manual_cutoffK_flag = True
 
-        if (self.cutoffK >= self.samplelogpsd.size):
-            log.write_log('! Warning:  cutoffK ({:}) is out of range.'.format(self.cutoffK))
-            #log.write_log('! Warning:  cutoffK ({:}) is out of range. The maximum frequency ({:}) will be used.'.format(self.cutoffK, self.samplelogpsd.size - 1))
-            #self.cutoffK = self.samplelogpsd.size - 1
+        if self.cutoffK >= self.samplelogpsd.size:
+            log.write_log(
+                "! Warning:  cutoffK ({:}) is out of range.".format(self.cutoffK)
+            )
+            # log.write_log('! Warning:  cutoffK ({:}) is out of range. The maximum frequency ({:}) will be used.'.format(self.cutoffK, self.samplelogpsd.size - 1))
+            # self.cutoffK = self.samplelogpsd.size - 1
 
         # COS-filter analysis with frequency cutoff K
         self.logtau = dct_filter_tau(self.samplelogpsd)
-        self.logpsd = dct_filter_psd(self.samplelogpsd, self.cutoffK)   # that is log(psd) for the chosen cutoffK
+        self.logpsd = dct_filter_psd(
+            self.samplelogpsd, self.cutoffK
+        )  # that is log(psd) for the chosen cutoffK
         self.psd = np.exp(self.logpsd)
         self.tau = np.exp(self.logtau)
         self.tau_THEORY_std = self.tau * self.logtau_THEORY_std
 
-        if (self.cutoffK < self.samplelogpsd.size):
+        if self.cutoffK < self.samplelogpsd.size:
             self.logtau_cutoffK = self.logtau[self.cutoffK]
             self.logtau_var_cutoffK = self.logtau_THEORY_var[self.cutoffK]
             self.logtau_std_cutoffK = self.logtau_THEORY_std[self.cutoffK]
@@ -264,7 +311,9 @@ class CepstralFilter(object):
         self.cutoffK_LIST = cutoffK_LIST
         self.logpsd_K_LIST = np.zeros((self.samplelogpsd.size, len(self.cutoffK_LIST)))
         self.psd_K_LIST = np.zeros((self.samplelogpsd.size, len(self.cutoffK_LIST)))
-        self.logtau_K_LIST = np.zeros(len(self.cutoffK_LIST))   # DEFINED AS log(PSD[0]), no factor 0.5 or 0.25
+        self.logtau_K_LIST = np.zeros(
+            len(self.cutoffK_LIST)
+        )  # DEFINED AS log(PSD[0]), no factor 0.5 or 0.25
         self.tau_K_LIST = np.zeros(len(self.cutoffK_LIST))
 
         for k, K in enumerate(self.cutoffK_LIST):
@@ -275,45 +324,69 @@ class CepstralFilter(object):
             self.tau_K_LIST[k] = np.exp(self.logtau_K_LIST[k])
 
             if correct_mean:
-                self.logpsd_K_LIST[:, k] = self.logpsd_K_LIST[:, k] + self.logpsd_THEORY_mean
-                self.logtau_K_LIST[k] = self.logtau_K_LIST[k] + self.logpsd_THEORY_mean[0]
+                self.logpsd_K_LIST[:, k] = (
+                    self.logpsd_K_LIST[:, k] + self.logpsd_THEORY_mean
+                )
+                self.logtau_K_LIST[k] = (
+                    self.logtau_K_LIST[k] + self.logpsd_THEORY_mean[0]
+                )
 
     #############################
     ####  Bayesian method
     #############################
-    def compute_p_aic(self, method='ba'):
+    def compute_p_aic(self, method="ba"):
         """Define a weight distribution from the AIC, according to a method."""
         NF = self.samplelogpsd.size
         self.p_aic = aic.produce_p(self.aic, method)
-        self.p_aic_Kave, self.p_aic_Kstd = aic.grid_statistics(np.arange(NF), self.p_aic)
+        self.p_aic_Kave, self.p_aic_Kstd = aic.grid_statistics(
+            np.arange(NF), self.p_aic
+        )
 
-    def compute_logtau_density(self, method='ba', only_stats=False, density_grid=None, grid_size=1000,
-                               correct_mean=True):
+    def compute_logtau_density(
+        self,
+        method="ba",
+        only_stats=False,
+        density_grid=None,
+        grid_size=1000,
+        correct_mean=True,
+    ):
         if self.p_aic is None:
-            raise ValueError('No P_AIC defined.')
+            raise ValueError("No P_AIC defined.")
 
         # compute statistics
-        self.p_logtau_density_xave, self.p_logtau_density_xstd = \
-                        aic.grid_statistics(self.logtau, self.p_aic, self.logtau_THEORY_var + self.logtau**2)
+        self.p_logtau_density_xave, self.p_logtau_density_xstd = aic.grid_statistics(
+            self.logtau, self.p_aic, self.logtau_THEORY_var + self.logtau**2
+        )
         self.p_logtau_density_xstd2 = np.dot(
-            self.p_aic, np.sqrt(self.logtau_THEORY_var + (self.logtau - self.p_logtau_density_xave)**2))
+            self.p_aic,
+            np.sqrt(
+                self.logtau_THEORY_var + (self.logtau - self.p_logtau_density_xave) ** 2
+            ),
+        )
         ##self.p_logtau_density_xave, self.p_logtau_density_xstd = \
         ##                aic.grid_statistics(self.p_logtau_grid, self.p_logtau_density)
 
         # compute distribution
         if not only_stats:
             if density_grid is None:
-                self.p_logtau_density, self.p_logtau_grid = aic.produce_p_density(self.p_aic, \
-                                        self.logtau_THEORY_std, self.logtau, grid_size=grid_size)
+                self.p_logtau_density, self.p_logtau_grid = aic.produce_p_density(
+                    self.p_aic, self.logtau_THEORY_std, self.logtau, grid_size=grid_size
+                )
             else:
                 self.p_logtau_grid = density_grid
-                self.p_logtau_density = aic.produce_p_density(self.p_aic, self.logtau_THEORY_std, \
-                                            self.logtau, grid=self.p_logtau_grid)
+                self.p_logtau_density = aic.produce_p_density(
+                    self.p_aic,
+                    self.logtau_THEORY_std,
+                    self.logtau,
+                    grid=self.p_logtau_grid,
+                )
 
         # tau distribution
-        self.p_tau_density_xave, self.p_tau_density_xstd = logtau_to_tau(self.p_logtau_density_xave,
-                                                                         self.logpsd_THEORY_mean[0],
-                                                                         self.p_logtau_density_xstd)
+        self.p_tau_density_xave, self.p_tau_density_xstd = logtau_to_tau(
+            self.p_logtau_density_xave,
+            self.logpsd_THEORY_mean[0],
+            self.p_logtau_density_xstd,
+        )
 
 
 #    def optimize_cos_filter(self, thr=0.05, cutoffK_LIST=None, logtauref=None):

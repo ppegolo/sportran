@@ -13,9 +13,10 @@ def dct_AIC(yk: np.ndarray, theory_var: np.ndarray | None = None) -> np.ndarray:
         theory_var2 = np.pi**2 / 6.0 / N  # otherwise
         for K in range(yk.size - 1):
             # aic[K] = np.sum(yk[K+1:]**2)/theory_var + 2.*K
-            aic[K] = ((1.0 / theory_var2) * np.sum(yk[K + 1 : -1] ** 2) + (1.0 / theory_var1) * yk[-1] ** 2) + 2.0 * (
-                K + 1
-            )
+            aic[K] = (
+                (1.0 / theory_var2) * np.sum(yk[K + 1 : -1] ** 2)
+                + (1.0 / theory_var1) * yk[-1] ** 2
+            ) + 2.0 * (K + 1)
         aic[-1] = 2.0 * yk.size
     else:
         aic[-1] = 0.0  # + (2*(yk.size+1))
@@ -36,7 +37,9 @@ def dct_AICc(yk: np.ndarray, theory_var: np.ndarray | None = None) -> np.ndarray
     return aic
 
 
-def dct_aic_ab(yk: np.ndarray, theory_var: np.ndarray, A: float = 1.0, B: float = 2.0) -> np.ndarray:
+def dct_aic_ab(
+    yk: np.ndarray, theory_var: np.ndarray, A: float = 1.0, B: float = 2.0
+) -> np.ndarray:
     """AIC[K] = sum_{k>K} c_k^2/theory_var + 2*K
     Assumiamo di tenere tutti i k <= K."""
     aic = np.zeros(yk.size)
@@ -73,7 +76,9 @@ def dct_aic_ab(yk: np.ndarray, theory_var: np.ndarray, A: float = 1.0, B: float 
 #
 
 
-def produce_p(aic: np.ndarray, method: str = "ba", force_normalize: bool = False) -> np.ndarray:
+def produce_p(
+    aic: np.ndarray, method: str = "ba", force_normalize: bool = False
+) -> np.ndarray:
     """Return model probabilities from an Akaike-information sequence."""
     k0 = np.argmin(aic)
     kM = len(aic)
@@ -154,7 +159,12 @@ def produce_p_density(
         delta = grid[1] - grid[0]
     density = np.zeros(len(grid))
     for ik in range(kM):
-        density = density + p[ik] * np.exp(-((grid - mean[ik]) ** 2) / (2.0 * (sigma[ik] ** 2))) / sigma[ik]
+        density = (
+            density
+            + p[ik]
+            * np.exp(-((grid - mean[ik]) ** 2) / (2.0 * (sigma[ik] ** 2)))
+            / sigma[ik]
+        )
     somma = np.trapezoid(density) * delta
     density = density / somma
     if return_grid:
