@@ -54,5 +54,15 @@ pip install .
 
   The Graphical User Interface can be started with the command `sportran-gui`.
 
+### Development
+
+- Minimum supported Python version is 3.10.
+- Formatting and autofixes: `tox -e format`
+- Linting and type checks: `tox -e lint`
+- Type checks only (same scope as lint): `tox -e type`
+- Test suite: `tox -e py310` (or `tox -e py311`, `tox -e py312`)
+- Documentation build: `tox -e docs`
+- Notebook tests: `tox -e notebooks`
+
 ### Issues
   You are strongly encouraged to report any issue on the [official](https://github.com/sissaschool/sportran/issues) GitHub issues page.
