@@ -28,7 +28,7 @@ In the `examples/` folder you can find some examples.
 
 Alternatively, you can run the code `analysis.py` from the **command line** without any installation procedure.
 It can execute most of the cepstral analysis routines, returning the results in a series of data files and PDF plots.
-See the `examples/example_commandline_NaCl/` folder and the help (`python analysis.py --help`) for more information.
+See the `examples/04_cmdline_example_NaCl/` folder and the help (`sportran-analysis --help`) for more information.
 
 ## Requirements
  - numpy
