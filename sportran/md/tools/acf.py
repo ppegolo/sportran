@@ -47,9 +47,8 @@ def acovf(x, unbiased=False, demean=True, fft=False, missing='none'):
 
     References
     -----------
-    .. [acovf-parzen1963] Parzen, E., 1963. On spectral analysis with missing observations
-           and amplitude modulation. Sankhya: The Indian Journal of
-           Statistics, Series A, pp.383-392.
+    Parzen, E. (1963), "On spectral analysis with missing observations and
+    amplitude modulation", Sankhya: The Indian Journal of Statistics, Series A.
     """
     x = np.squeeze(np.asarray(x))
     if x.ndim > 1:
@@ -161,9 +160,8 @@ def acf(x, unbiased=False, nlags=40, qstat=False, fft=False, alpha=None, missing
 
     References
     ----------
-    .. [acf-parzen1963] Parzen, E., 1963. On spectral analysis with missing observations
-       and amplitude modulation. Sankhya: The Indian Journal of
-       Statistics, Series A, pp.383-392.
+    Parzen, E. (1963), "On spectral analysis with missing observations and
+    amplitude modulation", Sankhya: The Indian Journal of Statistics, Series A.
 
     """
     nobs = len(x)   # should this shrink for missing='drop' and NaNs in x?
