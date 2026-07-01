@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
 
-__all__ = ['heat', 'electric', 'stress', 'thermoelectric', 'constants']
+from . import constants, electric, heat, stress, thermoelectric
 
-from . import *
+__all__ = ["heat", "electric", "stress", "thermoelectric", "constants"]

@@ -47,7 +47,7 @@ def scale_kappa_qepw(TEMPERATURE, VOLUME):
     VOLUME      cell VOLUME [A^3]
     Input stress is in units of Ry / bohr_radius^3 .
     """
-    return (constants.charge * constants.Ry_per_bohr3)**2 * VOLUME / TEMPERATURE / constants.kB
+    return (constants.charge * constants.Ry_per_bohr3) ** 2 * VOLUME / TEMPERATURE / constants.kB
 
 
 def scale_kappa_gpumd(TEMPERATURE, VOLUME):

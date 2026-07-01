@@ -31,7 +31,7 @@ Command line examples
 ---------------------
 
 These examples show how to use the command line program sportran-analysis (analysis.py) to perform cepstral analysis in a straightforward way. This is an expedient tool to analyse a time series using predefined parameters. Results are produced in the form of several text/binary files and pdf plots.
-You can find the examples in the `repository <https://github.com/sissaschool/sportran/tree/develop/examples>`_. 
+You can find the examples in the `repository <https://github.com/sissaschool/sportran/tree/develop/examples>`_.
 
 .. toctree::
    EXAMPLE_SILICA.md
