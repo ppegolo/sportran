@@ -1,6 +1,119 @@
 [build-system]
 requires = [
-    "setuptools>=42",
+    "setuptools>=68",
     "wheel"
 ]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "sportran"
+version = "1.0.0rc4"
+description = "Cepstral data analysis of current time series for Green-Kubo transport coefficients"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+requires-python = ">=3.10"
+authors = [
+    { name = "Loris Ercole" },
+    { name = "Riccardo Bertossa" },
+    { name = "Sebastiano Bisacchi" }
+]
+maintainers = [
+    { name = "Loris Ercole", email = "loris.ercole@epfl.ch" }
+]
+keywords = [
+    "cepstral",
+    "data analysis",
+    "thermal conductivity",
+    "transport coefficients",
+    "physics",
+    "green-kubo"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Environment :: Console"
+]
+dependencies = [
+    "numpy>=1.23",
+    "scipy>=1.9",
+    "matplotlib>=3.6",
+    "markdown2>=2.0.0",
+    "pillow>=9.0.0",
+    "emcee",
+    "opt_einsum"
+]
+
+[project.urls]
+Homepage = "https://github.com/sissaschool/sportran"
+Documentation = "https://sportran.readthedocs.io"
+Repository = "https://github.com/sissaschool/sportran"
+Issues = "https://github.com/sissaschool/sportran/issues"
+
+[project.scripts]
+sportran-analysis = "sportran.analysis:main"
+sportran-gui = "sportran_gui.main:run"
+
+[project.optional-dependencies]
+notebook = [
+    "jupyter"
+]
+tests = [
+    "pytest>=7.0",
+    "pytest-regressions>=2.4.2",
+    "pandas>=1.5",
+    "testbook",
+    "ipykernel"
+]
+doc = [
+    "sphinx>=7.0",
+    "myst_parser>=2.0",
+    "nbsphinx>=0.9"
+]
+lint = [
+    "ruff>=0.6.0"
+]
+type = [
+    "mypy>=1.11.0",
+    "types-markdown2"
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+exclude = ["examples*", "tests*", "docs*"]
+
+[tool.setuptools.package-data]
+sportran = ["plotter/styles/*.mplstyle"]
+sportran_gui = ["assets/icon.gif", "assets/languages.json"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["docs", "examples", "tests/test_as_example"]
+
+[tool.ruff.lint]
+select = ["E9", "F63", "F7"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = true
+show_error_codes = true
+files = [
+    "sportran/current/results.py",
+    "sportran/current/units",
+    "sportran/md/tools",
+    "sportran/md/aic.py",
+    "sportran/utils/logger.py"
+]

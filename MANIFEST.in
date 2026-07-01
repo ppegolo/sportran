@@ -1,10 +1,8 @@
 recursive-include examples *
 include LICENSE.txt
-include setup.json
-include sportran/README.md
-include sportran/metadata.json
+include README.md
 exclude sportran/utils/obsolete/
-include sportran_gui/README_GUI.md
+include README_GUI.md
 include sportran_gui/assets/icon.gif
 include sportran_gui/assets/languages.json
 include sportran/plotter/styles/api_style.mplstyle

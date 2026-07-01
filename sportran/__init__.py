@@ -15,10 +15,18 @@ from . import utils
 from . import plotter
 from . import i_o
 
+try:
+    from importlib.metadata import version as _pkg_version
+except ImportError:   # pragma: no cover
+    from importlib_metadata import version as _pkg_version
+
 __all__ = [current.__all__ + md.__all__]
 
 __license__ = 'GPL-3.0 license, see LICENSE.txt file.'
-__version__ = '1.0.0rc1'
+try:
+    __version__ = _pkg_version('sportran')
+except Exception:   # pragma: no cover
+    __version__ = '1.0.0rc4'
 __authors__ = 'Loris Ercole, Riccardo Bertossa, Sebastiano Bisacchi'
 __paper__ = (
     'L. Ercole, R. Bertossa, S. Bisacchi, S.Baroni, "SporTran: a code to estimate transport coefficients from the '

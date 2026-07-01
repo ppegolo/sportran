@@ -201,12 +201,12 @@ class TableFile(object):
                     else:
                         bracket = 0
                     if (bracket == 0):   # the variable is a scalar
-                        key = values[i]
+                        key = str(values[i])
                         if (key[:2] == 'c_'):   # remove 'c_' if present
                             key = key[2:]
                         self.all_ckeys[key] = [i]
                     else:   # the variable is a vector
-                        key = values[i][:bracket]   # name of vector
+                        key = str(values[i][:bracket])   # name of vector
                         if (key[:2] == 'c_'):   # remove 'c_' if present
                             key = key[2:]
                         vecidx = int(values[i][bracket + 1:-1])   # current index
