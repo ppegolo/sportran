@@ -12,7 +12,8 @@ DEFAULT_PLOT_STYLE = "api_style.mplstyle"
 def use_plot_style(plot_style_filename: str | None = None) -> None:
     """Use a matplotlib style file.
 
-    :param plot_style_filename: name or path of style file; default API style when ``None``
+    :param plot_style_filename: name or path of style file; default API style when
+        ``None``
     """
     if plot_style_filename is None:
         plot_style_filename = DEFAULT_PLOT_STYLE

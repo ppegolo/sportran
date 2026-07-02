@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 
+from typing import Any
+
 import numpy as np
 
 from sportran.utils import log
 
 
 class LowPassFilter(object):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         if len(args) < 1:
-            self.filtertype = kwargs.get("filtertype", None)
+            self.filtertype: str | None = kwargs.get("filtertype", None)
             if self.filtertype is None:
                 raise ValueError("Not enough input arguments.")
         else:
@@ -26,7 +28,7 @@ class LowPassFilter(object):
                 self.minatt = kwargs.get("minatt", None)
         return
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         msg = (
             "{} low-pass filter:\n".format(self.filtertype)
             + "  f0 = {}\n".format(self.f0)
@@ -34,7 +36,7 @@ class LowPassFilter(object):
         )
         return msg
 
-    def compute_response(self, freqs=None):
+    def compute_response(self, freqs: np.ndarray | None = None) -> None:
         if freqs is not None:
             self.freqs = freqs
         if self.freqs is None:
@@ -44,7 +46,7 @@ class LowPassFilter(object):
         self.logresponse = np.log(self.response)
         return
 
-    def exp_filter(self):
+    def exp_filter(self) -> np.ndarray:
         if self.f0 is None:
             raise ValueError("f0 not set.")
         if self.alpha is None:

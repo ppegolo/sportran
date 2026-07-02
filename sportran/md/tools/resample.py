@@ -5,8 +5,14 @@ from scipy.signal import lfilter
 
 
 def filter_and_sample(
-    y_big, W, DT, window="rectangular", even_NSTEPS=True, detrend=False, drop_first=True
-):
+    y_big: np.ndarray,
+    W: int,
+    DT: int,
+    window: str = "rectangular",
+    even_NSTEPS: bool = True,
+    detrend: bool = False,
+    drop_first: bool = True,
+) -> np.ndarray:
     """Filter signal with moving average window of width W and then sample it
     with time step DT."""
 
@@ -35,7 +41,9 @@ def filter_and_sample(
     return y
 
 
-def resample_psd(freqs, psd, cutfrequency):
+def resample_psd(
+    freqs: np.ndarray, psd: np.ndarray, cutfrequency: float
+) -> tuple[np.ndarray, np.ndarray]:
     if cutfrequency >= freqs[-1]:
         return freqs, psd
     NFREQS = freqs.size - 1

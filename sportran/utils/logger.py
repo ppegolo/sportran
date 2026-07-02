@@ -5,10 +5,10 @@ from typing import IO, Any, Callable, ClassVar, Optional
 
 class PrintMethod:
     """
-    This class is intended to manage all the messages that should be put in a file,
-    in the stdout with print, or in any other place. Is has to be used as a global thing.
-    It is just a routing point. In the whole library please use this.
-    By default it is equivalent to a call to print()
+    This class is intended to manage all the messages that should be put in a file, in
+    the stdout with print, or in any other place. Is has to be used as a global thing.
+    It is just a routing point. In the whole library please use this. By default it is
+    equivalent to a call to print()
     """
 
     _print_func: ClassVar[Optional[Callable[..., None]]] = (
@@ -53,14 +53,15 @@ class PrintMethod:
     @classmethod
     def set_func(cls, func: Callable[..., None]) -> None:
         """Set the function to call when :func:`write_log` is called.
-        The function is called only if the 'other' method is setted by :func:`append_method`
-        or :func:`set_method`"""
+        The function is called only if the 'other' method is setted by
+        :func:`append_method` or :func:`set_method`"""
         cls._print_func = func
 
     @classmethod
     def append_method(cls, method: str) -> None:
         """append the method to the list.
-        :param method: the method to be added to the method list, can be any of 'bash', 'file' or 'other'
+        :param method: the method to be added to the method list, can be any of 'bash',
+            'file' or 'other'
         :type method: str
         if 'file' remember to call :func:`open_file` somewhere
         """

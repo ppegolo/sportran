@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 This module is supposed to implement a SportranBinaryFile, but it is not ready.
-See:  https://github.com/sissaschool/sportran/issues/37
 """
 
 import pickle
+from typing import Any
 
 from sportran.current import Current
 from sportran.utils.attributedict import AttributeDict
@@ -12,13 +12,11 @@ from sportran.utils.attributedict import AttributeDict
 __all__ = ["SportranBinaryFile", "SportranInput", "SportranOutput", "SportranSettings"]
 
 
-def multi_pickle_dump(self, filename, **objs):
-    # dump a dictionary of all the passed objects
+def multi_pickle_dump(filename: str, **objs: Any) -> None:
     pickle.dump(objs, open(filename, "wb"))
 
 
-def multi_pickle_load(self, filename):
-    # return a dictionary of all the stored objects
+def multi_pickle_load(filename: str) -> Any:
     return pickle.load(open(filename, "rb"))
 
 
@@ -36,13 +34,14 @@ class SportranSettings(AttributeDict):
 
 class SportranBinaryFile:
     """
-    A SporTran Binary File object, that stores information about a SporTran calculation, its inputs, data, and outputs.
-    The data stored can be used to restore a calculation that was previously run.
+    A SporTran Binary File object, that stores information about a SporTran calculation,
+    its inputs, data, and outputs. The data stored can be used to restore a calculation
+    that was previously run.
 
     Attributes:
-        input_parameters    a SportranInput object, the input parameters of the calculation
-        settings            a SportranSettings object, the calculation settings
-        current             a Current object, the original current
+        input_parameters    a SportranInput object, the input parameters of the
+        calculation settings            a SportranSettings object, the calculation
+        settings current             a Current object, the original current
         current_resampled   a Current object, the current obtained by resampling current
         output_results      a SportranOutput object, the calculation outputs
 
@@ -59,31 +58,33 @@ class SportranBinaryFile:
         "output_results",
     )
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         for key in self._storable_attrs:
             self.__setattr__(key, kwargs.pop(key, None))
         if kwargs:
             raise ValueError("Keys {} are not valid.".format(kwargs.keys()))
 
     @classmethod
-    def load(cls, filename):
+    def load(cls, filename: str) -> "SportranBinaryFile":
         """Load SporTran data from a binary file."""
         return cls(**multi_pickle_load(filename))
 
-    def dump(self, filename):
+    def dump(self, filename: str) -> None:
         """Dump SporTran data to a binary file."""
-        multi_pickle_dump(filename, **{key: self.key for key in self._storable_attrs})
+        multi_pickle_dump(
+            filename, **{key: getattr(self, key) for key in self._storable_attrs}
+        )
         print(
             f'Binary file "{filename}" successfully created, with the following data:'
         )
         print([key for key in self._storable_attrs if key is not None])
 
     @property
-    def input_parameters(self):
+    def input_parameters(self) -> SportranInput | None:
         return self._input_parameters
 
     @input_parameters.setter
-    def input_parameters(self, value):
+    def input_parameters(self, value: Any) -> None:
         if value is None:
             self._input_parameters = None
         elif isinstance(value, SportranInput):
@@ -92,11 +93,11 @@ class SportranBinaryFile:
             raise TypeError()
 
     @property
-    def settings(self):
+    def settings(self) -> SportranSettings | None:
         return self._settings
 
     @settings.setter
-    def settings(self, value):
+    def settings(self, value: Any) -> None:
         if value is None:
             self._settings = None
         elif isinstance(value, SportranSettings):
@@ -105,11 +106,11 @@ class SportranBinaryFile:
             raise TypeError()
 
     @property
-    def current(self):
+    def current(self) -> Current | None:
         return self._current
 
     @current.setter
-    def current(self, value):
+    def current(self, value: Any) -> None:
         if value is None:
             self._current = None
         elif isinstance(value, Current):
@@ -118,11 +119,11 @@ class SportranBinaryFile:
             raise TypeError()
 
     @property
-    def current_resampled(self):
+    def current_resampled(self) -> Current | None:
         return self._current_resampled
 
     @current_resampled.setter
-    def current_resampled(self, value):
+    def current_resampled(self, value: Any) -> None:
         if value is None:
             self._current_resampled = None
         elif isinstance(value, Current):
@@ -131,11 +132,11 @@ class SportranBinaryFile:
             raise TypeError()
 
     @property
-    def output_results(self):
+    def output_results(self) -> SportranOutput | None:
         return self._output_results
 
     @output_results.setter
-    def output_results(self, value):
+    def output_results(self, value: Any) -> None:
         if value is None:
             self._output_results = None
         elif isinstance(value, SportranOutput):

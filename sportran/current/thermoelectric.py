@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from typing import Any, Callable
+
 import numpy as np
 from scipy.interpolate import CubicSpline
 
@@ -22,7 +24,8 @@ class ThermoElectricCurrent(Current):
     INPUT parameters:
      - traj          coupled current time series as a (2, N, N_EQUIV_COMPONENTS) array,
                      where index 0 is heat current and index 1 is charge current.
-                     Alternatively, pass heat_current and charge_current named arguments.
+                     Alternatively, pass heat_current and charge_current named
+                     arguments.
      - DT_FS         MD time step [fs]
      - UNITS         units of current ('metal', 'real', ...)
      - TEMPERATURE   average temperature [K]
@@ -35,11 +38,11 @@ class ThermoElectricCurrent(Current):
 
     def __init__(
         self,
-        traj=None,
-        heat_current=None,
-        charge_current=None,
-        **params,
-    ):
+        traj: np.ndarray | None = None,
+        heat_current: np.ndarray | None = None,
+        charge_current: np.ndarray | None = None,
+        **params: Any,
+    ) -> None:
         if traj is None:
             if heat_current is None or charge_current is None:
                 raise ValueError(
@@ -58,10 +61,10 @@ class ThermoElectricCurrent(Current):
                 "ThermoElectricCurrent requires exactly two currents: heat and charge."
             )
 
-        self.thermoelectric_result = None
+        self.thermoelectric_result: ThermoelectricResult | None = None
 
     @property
-    def _builder(self):
+    def _builder(self) -> dict[str, float | str | None]:
         return dict(
             DT_FS=self.DT_FS,
             UNITS=self.UNITS,
@@ -72,7 +75,7 @@ class ThermoElectricCurrent(Current):
         )
 
     @staticmethod
-    def _default_wishart_model(x, y):
+    def _default_wishart_model(x: np.ndarray, y: np.ndarray) -> CubicSpline:
         xx = np.concatenate([-x[::-1], x[1:]])
         yy = np.asarray(y).reshape(x.size, 3)
         yy = np.concatenate([yy[::-1], yy[1:]])
@@ -80,16 +83,17 @@ class ThermoElectricCurrent(Current):
 
     def analyze_wishart(
         self,
-        n_parameters="AIC",
-        model=None,
-        mask=None,
-        solver="BFGS",
-        guess_runave_window=50,
-        minimize_kwargs=None,
-        limits=None,
-        omega_fixed=None,
-        mc_samples=1000,
-    ):
+        n_parameters: int | str = "AIC",
+        model: Callable[[np.ndarray, np.ndarray], Callable[[np.ndarray], np.ndarray]]
+        | None = None,
+        mask: np.ndarray | None = None,
+        solver: str = "BFGS",
+        guess_runave_window: int = 50,
+        minimize_kwargs: dict[str, Any] | None = None,
+        limits: list[tuple[float, float]] | None = None,
+        omega_fixed: np.ndarray | None = None,
+        mc_samples: int = 1000,
+    ) -> ThermoelectricResult:
         """
         Run one-shot Wishart analysis and return thermoelectric coefficients.
         """
@@ -112,7 +116,7 @@ class ThermoElectricCurrent(Current):
         self.thermoelectric_result = self._build_thermoelectric_result(mc_samples)
         return self.thermoelectric_result
 
-    def coefficients(self):
+    def coefficients(self) -> dict[str, float | None]:
         if self.thermoelectric_result is None:
             raise RuntimeError("Run `analyze_wishart` first.")
         return {
@@ -124,7 +128,7 @@ class ThermoElectricCurrent(Current):
             "seebeck_std": self.thermoelectric_result.seebeck_std,
         }
 
-    def spectra(self):
+    def spectra(self) -> dict[str, np.ndarray | None]:
         if self.thermoelectric_result is None:
             raise RuntimeError("Run `analyze_wishart` first.")
         return {
@@ -135,13 +139,13 @@ class ThermoElectricCurrent(Current):
 
     def coefficients_vs_frequency(
         self,
-        source="wishart",
-        units="si",
-        with_uq=True,
-        uq="mc",
-        mc_samples=256,
-        random_seed=None,
-    ):
+        source: str = "wishart",
+        units: str = "si",
+        with_uq: bool = True,
+        uq: str = "mc",
+        mc_samples: int = 256,
+        random_seed: int | None = None,
+    ) -> dict[str, Any]:
         """
         Compute sigma, kappa and Seebeck as functions of frequency.
 
@@ -150,8 +154,8 @@ class ThermoElectricCurrent(Current):
         source : {'raw', 'filtered', 'wishart'}
             Source spectrum used to build coefficients.
         units : {'si', 'plot'}
-            Output units. 'si' gives (S/m, W/m/K, V/K), while 'plot' gives
-            (S/cm, W/m/K, mV/K).
+            Output units. 'si' gives (S/m, W/m/K, V/K), while 'plot' gives (S/cm, W/m/K,
+            mV/K).
         with_uq : bool
             If True, include uncertainty if available.
         uq : {'mc'}
@@ -194,7 +198,7 @@ class ThermoElectricCurrent(Current):
 
         return out
 
-    def _build_thermoelectric_result(self, mc_samples):
+    def _build_thermoelectric_result(self, mc_samples: int) -> ThermoelectricResult:
         scales = self._thermoelectric_scales()
         omega = np.copy(self.maxlike.omega)
         spectral_mean = np.copy(self.maxlike.NLL_mean)
@@ -246,7 +250,7 @@ class ThermoElectricCurrent(Current):
             omega=omega,
             spectral_matrix_mean=spectral_mean,
             spectral_matrix_std=spectral_std,
-            onsager_zero_mean=onsager_zero_mean,
+            onsager_zero_mean=np.asarray(onsager_zero_mean),
             onsager_zero_std=onsager_zero_std,
             sigma=float(sigma),
             sigma_std=None if sigma_std is None else float(sigma_std),
@@ -272,7 +276,9 @@ class ThermoElectricCurrent(Current):
             },
         )
 
-    def _sample_coefficients_mc(self, scales, mc_samples):
+    def _sample_coefficients_mc(
+        self, scales: dict[str, float], mc_samples: int
+    ) -> dict[str, Any] | None:
         params_mean = getattr(self.maxlike, "parameters_mean", None)
         params_cov = getattr(self.maxlike, "parameters_cov", None)
         if params_mean is None or params_cov is None:
@@ -287,6 +293,8 @@ class ThermoElectricCurrent(Current):
         except (ValueError, np.linalg.LinAlgError):
             return None
 
+        assert self.maxlike.model is not None
+        assert self.maxlike.omega_fixed is not None
         coeff_list = []
         for sample in samples:
             Sm = (
@@ -311,8 +319,8 @@ class ThermoElectricCurrent(Current):
         }
 
     def _sample_coefficients_vs_frequency_mc(
-        self, mc_samples, units="si", random_seed=None
-    ):
+        self, mc_samples: int, units: str = "si", random_seed: int | None = None
+    ) -> dict[str, Any] | None:
         params_mean = getattr(self.maxlike, "parameters_mean", None)
         params_cov = getattr(self.maxlike, "parameters_cov", None)
         if params_mean is None or params_cov is None:
@@ -328,6 +336,8 @@ class ThermoElectricCurrent(Current):
         except (ValueError, np.linalg.LinAlgError):
             return None
 
+        assert self.maxlike.model is not None
+        assert self.maxlike.omega_fixed is not None
         sigma_list = []
         kappa_list = []
         seebeck_list = []
@@ -357,8 +367,9 @@ class ThermoElectricCurrent(Current):
             "seebeck_std": seebeck_arr.std(axis=0),
         }
 
-    def _spectral_tensor_by_source(self, source):
+    def _spectral_tensor_by_source(self, source: str) -> tuple[np.ndarray, np.ndarray]:
         if source == "raw":
+            assert self.cospectrum is not None
             S = self.cospectrum.real.transpose((2, 0, 1)) / self.N_EQUIV_COMPONENTS
             omega = self.freqs_THz
             return S, omega
@@ -373,13 +384,16 @@ class ThermoElectricCurrent(Current):
         if source == "wishart":
             if self.thermoelectric_result is None:
                 raise RuntimeError("Run `analyze_wishart` first.")
+            assert self.maxlike.mask is not None
             S = self.thermoelectric_result.spectral_matrix_mean
             omega = self.freqs_THz[self.maxlike.mask[2]]
             return S, omega
 
         raise ValueError("`source` must be one of: raw, filtered, wishart")
 
-    def _coefficients_from_spectral_tensor(self, spectral_tensor, units="si"):
+    def _coefficients_from_spectral_tensor(
+        self, spectral_tensor: np.ndarray, units: str = "si"
+    ) -> dict[str, np.ndarray]:
         units = units.lower()
         if units not in ("si", "plot"):
             raise ValueError("`units` must be either 'si' or 'plot'.")
@@ -411,7 +425,7 @@ class ThermoElectricCurrent(Current):
             "seebeck": np.asarray(seebeck),
         }
 
-    def _thermoelectric_scales(self):
+    def _thermoelectric_scales(self) -> dict[str, float]:
         unit = self.UNITS.lower()
         hscale = getattr(heat_units, "scale_kappa_{}".format(unit))
         escale = getattr(electric_units, "scale_kappa_{}".format(unit))
@@ -429,7 +443,9 @@ class ThermoElectricCurrent(Current):
             "mixed_scale": float(mixed_scale),
         }
 
-    def _coefficients_from_spectral_matrix(self, spectral_matrix, scales):
+    def _coefficients_from_spectral_matrix(
+        self, spectral_matrix: np.ndarray, scales: dict[str, float]
+    ) -> dict[str, np.ndarray | float]:
         kappa_scale = scales["kappa_scale"]
         sigma_scale = scales["sigma_scale"]
         mixed_scale = scales["mixed_scale"]

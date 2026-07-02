@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-This module is the CLI of the library, that can be called after installing it from the command line
+This module is the CLI of the library, that can be called after installing it from the
+command line
 """
 
 import argparse
 import os
 from sys import argv, path
+
+os.environ["MPLBACKEND"] = "Agg"
 
 import numpy as np
 
@@ -37,51 +40,12 @@ from sportran.plotter import (
 np.set_printoptions(precision=8)
 
 
-def main():
+def main() -> int:
     """
     SporTran command-line interface.
 
-    This script performs cepstral analysis of a current time series. Results are
-    written to stdout and a log file, and plots are saved in PDF format.
-
-    Input formats
-    -------------
-    - ``table``: column-formatted text file with LAMMPS-like headers.
-    - ``dict``: NumPy binary file containing a dictionary.
-    - ``lammps``: LAMMPS log file (requires ``--run-keyword``).
-
-    Output files
-    ------------
-    - ``[output].logfile``: log of the analysis.
-    - ``[output].plots.pdf``: all generated plots.
-    - ``[output].psd``: original periodogram and log-periodogram.
-    - ``[output].cospectrum``: full matrix cospectrum (when available).
-    - ``[output].resampled_psd``: resampled periodogram and log-periodogram.
-    - ``[output].cepstral``: cepstral coefficients and transport estimates.
-    - ``[output].cepstrumfiltered_psd``: cepstrum-filtered spectra.
-
-    Example
-    -------
-    Read and analyze ``examples/data/Silica.dat`` where energy-flux columns are
-    named ``c_flux[1]``, ``c_flux[2]``, ``c_flux[3]``:
-
-    ``./analysis "examples/data/Silica.dat" --VOLUME 3130.431110818 --TEMPERATURE 1065.705630 -t 1.0 -k flux1 -u metal -r --FSTAR 28.0 -w 0.5 -o silica_test``
-    """
-    _epilog = """---
-    Enjoy it!
-    ---
-    Developed by Loris Ercole, Riccardo Bertossa, Sebastiano Bisacchi, under the supervision of prof. Stefano Baroni at SISSA, Via Bonomea, 265 - 34136 Trieste ITALY.
-
-    Please cite these references:
-     - Ercole, Marcolongo, Baroni, Sci. Rep. 7, 15835 (2017), https://doi.org/10.1038/s41598-017-15843-2
-     - Bertossa, Grasselli, Ercole, Baroni, Phys. Rev. Lett. 122, 255901 (2019), https://doi.org/10.1103/PhysRevLett.122.255901
-     - Baroni, Bertossa, Ercole, Grasselli, Marcolongo, Handbook of Materials Modeling (2018), https://doi.org/10.1007/978-3-319-50257-1_12-1
-
-    GitHub:    https://github.com/sissaschool/sportran
-    Contact:   loris.ercole@epfl.ch, rbertoss@sissa.it
-
-    Acknowledgment
-    The development of this software is part of the scientific program of the EU MaX Centre of Excellence for Supercomputing Applications (Grant No. 676598, 824143) and has been partly funded through it.
+    Performs cepstral analysis of a current time series. Results are written to stdout
+    and a log file, and plots are saved in PDF format.
     """
 
     # yapf: disable
@@ -94,33 +58,39 @@ def main():
         print(st.current.build_currents_units_table())
         return 0
 
-    parser = argparse.ArgumentParser(description=main.__doc__, epilog=_epilog, formatter_class=argparse.RawTextHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=main.__doc__,
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
     parser.add_argument('inputfile', type=str,
             help='input file to read (default format: Table)')
 
     input_file_group = parser.add_argument_group('Input file format')
-    input_file_group.add_argument('--input-format', default='table', type=str, choices=['table', 'dict', 'lammps'],
+    input_file_group.add_argument('--input-format', default='table', type=str,
+            choices=['table', 'dict', 'lammps'],
             help='Format of the input file. (default: table)')
     input_file_group.add_argument('-k', '--mainfluxkey', type=str, required=True,
-            help='Name of the column keyword that identifies the first flux in the onsager matrix')
-    input_file_group.add_argument('-j', '--add-currents', type=str, default=[], action='append',
-            help='Additional current for multi-component fluids. (optional, repeat -j to add more currents)')
+            help='Column keyword for the first flux in the onsager matrix')
+    input_file_group.add_argument('-j', '--add-currents', type=str, default=[],
+            action='append',
+            help='Additional current for multi-component fluids (repeat -j)')
     input_file_group.add_argument('-N', '--nsteps', type=int, default=0,
-            help='Number of steps to read. (optional, default: 0=all)')
+            help='Number of steps to read. (default: 0=all)')
     input_file_group.add_argument('-S', '--start-step', type=int, default=0,
-            help='The first step to read. (optional, default: 0=first)')
+            help='The first step to read. (default: 0=first)')
     input_file_group.add_argument('--cindex', nargs='*', type=int,
-            help='Column indexes of the main current to read (0,1,2,...). (optional, default: all)')
+            help='Column indexes of the main current (0,1,2,...). (default: all)')
     input_file_group.add_argument('--sindex', nargs='*', type=int,
-            help='Column indexes of a current to be substracted from the main current. (optional)')
+            help='Column indexes of a current to subtract from the main current')
     input_file_group.add_argument('--split', type=int, default=1,
-            help='Build a time series with n*m independent processes (n is the number of processes of the original timeseries, m is the number provided with --split). The length of the new time series will be [original length]/m. (optional)')
+            help='Split time series into independent segments. '
+                 'New length = [original] / m. (optional)')
 
     lammps_group = parser.add_argument_group('LAMMPS input file format settings')
     lammps_group.add_argument('--run-keyword', type=str,
-            help='Keyword that identifies the run to be read: a specific comment line placed just before the run command (only for "lammps" format)')
+            help='Keyword identifying the run in the LAMMPS log file')
     lammps_group.add_argument('--structure', type=str,
-            help='LAMMPS data file containing the structure. Read to get Volume. (optional)')
+            help='LAMMPS data file for Volume. (optional)')
 
     output_file_group = parser.add_argument_group('Output file format')
     output_file_group.add_argument('-o', '--output', type=str, default='output',
@@ -132,29 +102,29 @@ def main():
     output_file_group.add_argument('--no-plot', action='store_true',
             help='Do not save plot files. (optional)')
     output_file_group.add_argument('--bin-output-old', action='store_true',
-            help='Use old format for binary files (compatibility). (optional) - *TO BE DEPRECATED*')
+            help='Use old binary format (compatibility)')
 
     input_params_group = parser.add_argument_group('Physical parameters')
     input_params_group.add_argument('-t', '--timestep', type=float, required=True,
             help='Time step of the data (fs)')
     for parameter in st.current.all_parameters:
         input_params_group.add_argument(f'--{parameter}', type=float,
-            help='Usually Angstrom or Kelvins, see description of units and currents implemented available with --list-currents')
+            help='See --list-currents for description')
     input_params_group.add_argument('-u', '--units', type=str, default='metal',
             choices=st.current.all_units,
-            help='Units. (optional, default: metal)')
+            help='Units. (default: metal)')
     input_params_group.add_argument('-C', '--current', type=str, default='heat',
             choices=list(st.current.all_currents.keys()),
-            help='Type of currents that is provided to the code. Usually this just changes the conversion factor. (optional, default: heat)')
+            help='Type of current. Changes the conversion factor. (default: heat)')
     input_params_group.add_argument('--param-from-input-file-column', type=str,
             action='append', dest='parameters_from_input_file', nargs=2,
-            help='in order: header of the column and name of the parameter that will be setted to the average of that column of the input file')
+            help='Column header and parameter name, set to column average')
     input_params_group.add_argument('--list-currents', action='store_true',
-            help='show the list of currents implemented, the docstrings of the units, then exit')
+            help='List implemented currents and units, then exit')
 
     analysis_group = parser.add_argument_group('Analysis options')
     analysis_group.add_argument('-r', '--resample', action='store_true',
-            help='Resample the time series (using TSKIP or FSTAR). (optional)')
+            help='Resample the time series. (optional)')
     resamplearg = analysis_group.add_mutually_exclusive_group()
     resamplearg.add_argument('--TSKIP', type=int,
             help='Resampling time period (steps)')
@@ -162,9 +132,9 @@ def main():
             help='Resampling target Nyquist frequency (THz)')
     cutoff_group = analysis_group.add_mutually_exclusive_group()
     cutoff_group.add_argument('-c', '--corr-factor', type=float, default=1.0,
-            help='Correction factor to the AIC. (optional, default: 1.0 = no correction)')
+            help='Correction factor to the AIC. (default: 1.0)')
     cutoff_group.add_argument('-P', '--manual-Pstar', type=int,
-            help='Manual P* value. (optional, default: use automatic P*)')
+            help='Manual P* value. (default: automatic P*)')
 
     plot_group = parser.add_argument_group('Plot options (optional)')
     plot_group.add_argument('-w', '--psd-filterw', type=float,
@@ -197,7 +167,9 @@ def main():
     return 0
 
 
-def concatenate_if_not_none_with_labels(concat, labels=None):
+def concatenate_if_not_none_with_labels(
+    concat: list, labels: list[str] | None = None
+) -> tuple[np.ndarray, str]:
     out_arr = []
     out_label = ""
     if labels is None:
@@ -209,7 +181,7 @@ def concatenate_if_not_none_with_labels(concat, labels=None):
     return np.concatenate([out_arr], axis=1).transpose(), f"{out_label}\n"
 
 
-def run_analysis(args):
+def run_analysis(args: argparse.Namespace) -> int:
 
     inputfile = args.inputfile
     input_format = args.input_format
@@ -240,7 +212,6 @@ def run_analysis(args):
         args.parameters_from_input_file if args.parameters_from_input_file else []
     )
     parameters_from_input_file_key = [x[0] for x in parameters_from_input_file]
-    parameters_from_input_file_name = [x[1] for x in parameters_from_input_file]
     units = args.units
     current_type = args.current
 
@@ -294,11 +265,12 @@ def run_analysis(args):
 
     # Read data
     selected_keys = [j1_key]
+    jfile: st.i_o.TableFile | st.i_o.LAMMPSLogFile
     selected_keys.extend(j2_keys)
     jdata = None
     if input_format == "table":
-        # Table format: data is organized in columns, the selected_keys determines which to read
-        # input parameters that are read from file
+        # Table format: data is organized in columns, the selected_keys determines which
+        # to read input parameters that are read from file
         for col, pname in parameters_from_input_file:
             selected_keys.append(col)
         jfile = st.i_o.TableFile(
@@ -357,7 +329,7 @@ def run_analysis(args):
         NSTEPS = jdata[list(jdata.keys())[0]].shape[0]
 
     # compute average parameters from input file, if requested
-    def average(data, name, units=""):
+    def average(data: np.ndarray, name: str, units: str = "") -> float:
         ave = np.mean(data)
         std = np.std(data)
         log.write_log(f"Mean {name} (computed): {ave} +/- {std}")
@@ -373,10 +345,9 @@ def run_analysis(args):
         # read volume from LAMMPS data file
         _, volume = st.i_o.read_lammps_datafile.get_box(structurefile)
         log.write_log(" Volume (structure file):    {} A^3".format(volume))
-        # note: here I hardcoded the volume key
-        #      nothing guarantees that in the parameter list
-        #      of the function that calculates KAPPA_SCALE
-        #      you are going to find the VOLUME parameter with this meaning
+        # note: here I hardcoded the volume key nothing guarantees that in the parameter
+        #      list of the function that calculates KAPPA_SCALE you are going to find
+        #      the VOLUME parameter with this meaning
         parameters["VOLUME"] = volume
 
     # Time step
@@ -389,8 +360,8 @@ def run_analysis(args):
             [jdata[key][START_STEP : (START_STEP + NSTEPS), :] for key in selected_keys]
         )
     else:
-        # read only the components jindex
-        # NOTE: for multi-current cases, it will select jindex of each current
+        # read only the components jindex NOTE: for multi-current cases, it will select
+        # jindex of each current
         if sindex is None:
             currents = np.array(
                 [
@@ -561,9 +532,7 @@ def run_analysis(args):
         outfile_header = "freqs_THz  cepf_psd cepf_logpsd\n"
         np.savetxt(outfile_name, outarray, header=outfile_header, fmt=fmt)
 
-    ####################################
-    # PLOTS
-    ####################################
+    #################################### PLOTS ###################################
 
     if do_plot:
         pdf = PdfPages(output + ".plots.pdf")
@@ -605,7 +574,7 @@ def run_analysis(args):
             for idx1 in range(j.N_CURRENTS):
                 for idx2 in range(idx1, j.N_CURRENTS):
                     addPlotToPdf(j.plot_cospectrum_component, pdf, idx1, idx2)
-        except:
+        except Exception:
             pass
 
         # plot cepstral coefficients
@@ -623,8 +592,7 @@ def run_analysis(args):
         plt.close()
 
         # # plot kappa(Pstar)
-        # ax = jf.plot_kappa_Pstar()
-        # ax.set_xlim([0, 10*jf.cepf.cutoffK])
+        # ax = jf.plot_kappa_Pstar() ax.set_xlim([0, 10*jf.cepf.cutoffK])
 
         addPlotToPdf(
             jf.plot_kappa_Pstar,
@@ -640,8 +608,7 @@ def run_analysis(args):
         jf.plot_cepstral_spectrum(axes=ax, label="cepstrum-filtered")
         ax[0].axvline(x=jf.Nyquist_f_THz, ls="--", c="r")
         ax[1].axvline(x=jf.Nyquist_f_THz, ls="--", c="r")
-        # ax[0].set_xlim([0., 2.5*FSTAR_THZ])
-        # ax[1].set_ylim([12,18])
+        # ax[0].set_xlim([0., 2.5*FSTAR_THZ]) ax[1].set_ylim([12,18])
         # ax[0].legend(['original', 'resampled', 'cepstrum-filtered'])
         # ax[1].legend(['original', 'resampled', 'cepstrum-filtered']);
 
@@ -657,7 +624,7 @@ def run_analysis(args):
 
 class TCOutput(object):
     # yapf: disable
-    def __init__(self):
+    def __init__(self) -> None:
         # TO BE COMPLETED WIHT ALL PARAMETERS
         self.j_DT_FS            = None
         self.j_freqs_THz        = None
@@ -668,6 +635,7 @@ class TCOutput(object):
         self.j_Nyquist_f_THz    = None
         self.j_PSD_FILTER_W_THz = None
         self.j_cospectrum       = None
+        self.j_fcospectrum      = None
 
         self.jf_DT_FS         = None
         self.jf_freqs_THz     = None
@@ -694,16 +662,16 @@ class TCOutput(object):
         self.kappa_std      = None
         self.cepstral_log   = None
         self.UNITS          = None
+        self.units          = None
         self.KAPPA_SCALE    = None
         self.TEMPERATURE    = None
         self.VOLUME         = None
         self.TSKIP          = None
 
     # yapf: enable
-    def write_old_binary(self, output):
+    def write_old_binary(self, output: str) -> None:
         """Write old binary format."""
         opts = {"allow_pickle": False}
-        optsa = {"axis": 1}
         outarray, _ = concatenate_if_not_none_with_labels(
             [self.j_freqs_THz, self.j_fpsd, self.j_flogpsd, self.j_psd, self.j_logpsd]
         )

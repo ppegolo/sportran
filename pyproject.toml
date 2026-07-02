@@ -106,10 +106,11 @@ extend-exclude = ["docs", "examples", "tests/test_as_example"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
-ignore = ["E402", "E501", "E711", "E722", "E741", "F401", "F403", "F405", "F811", "F821", "F841"]
+ignore = ["E402", "E501", "F401", "F403", "F405", "F821"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/{docs,examples,tests}/*" = ["D"]
+"sportran/utils/obsolete/*" = ["E711", "E722", "F811"]
 
 [tool.mypy]
 python_version = "3.10"
@@ -118,12 +119,7 @@ ignore_missing_imports = true
 warn_unused_ignores = true
 show_error_codes = true
 files = [
-    "sportran/current/results.py",
-    "sportran/current/current.py",
-    "sportran/current/units",
-    "sportran/md/tools",
-    "sportran/md/aic.py",
-    "sportran/utils/logger.py"
+    "sportran/",
 ]
 
 [tool.pydoclint]

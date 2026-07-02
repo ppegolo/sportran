@@ -1,13 +1,33 @@
 # -*- coding: utf-8 -*-
 
+from typing import Any
+
 import numpy as np
+import scipy.stats as stats
 
 
-def integrate_acf(acf):
+class MissingDataError(ValueError):
+    pass
+
+
+def _bit_length_26(n: int) -> int:
+    return n.bit_length()
+
+
+def _acf_q_stat(acf: np.ndarray, nobs: int) -> tuple[np.ndarray, np.ndarray]:
+    h = acf.shape[0]
+    qstat: np.ndarray = (
+        nobs * (nobs + 2) * np.cumsum(acf**2 / (nobs - np.arange(1, h + 1)))
+    )
+    pvalue = 1 - stats.chi2.cdf(qstat, df=np.arange(1, h + 1))
+    return qstat, pvalue
+
+
+def integrate_acf(acf: np.ndarray) -> np.ndarray:
     """Return cumulative integral of ``acf`` versus upper integration limit.
 
-    Supports multi-component ``(N, N_COMP)`` arrays.
-    Trapezoidal integration is used: ``tau[i] = trapz(acf[0:i+1])``.
+    Supports multi-component ``(N, N_COMP)`` arrays. Trapezoidal integration is used:
+    ``tau[i] = trapz(acf[0:i+1])``.
     """
 
     N = acf.shape[0]
@@ -21,7 +41,13 @@ def integrate_acf(acf):
 ## functions copied from statstools.tsa
 
 
-def acovf(x, unbiased=False, demean=True, fft=False, missing="none"):
+def acovf(
+    x: np.ndarray,
+    unbiased: bool = False,
+    demean: bool = True,
+    fft: bool = False,
+    missing: str = "none",
+) -> np.ndarray:
     """
     Autocovariance for 1D
 
@@ -34,8 +60,8 @@ def acovf(x, unbiased=False, demean=True, fft=False, missing="none"):
     demean : bool
         If True, then subtract the mean x from each element of x
     fft : bool
-        If True, use FFT convolution.  This method should be preferred
-        for long time series.
+        If True, use FFT convolution.  This method should be preferred for long time
+        series.
     missing : str
         A string in ['none', 'raise', 'conservative', 'drop'] specifying how the NaNs
         are to be treated.
@@ -47,8 +73,8 @@ def acovf(x, unbiased=False, demean=True, fft=False, missing="none"):
 
     References
     -----------
-    Parzen, E. (1963), "On spectral analysis with missing observations and
-    amplitude modulation", Sankhya: The Indian Journal of Statistics, Series A.
+    Parzen, E. (1963), "On spectral analysis with missing observations and amplitude
+    modulation", Sankhya: The Indian Journal of Statistics, Series A.
     """
     x = np.squeeze(np.asarray(x))
     if x.ndim > 1:
@@ -108,11 +134,16 @@ def acovf(x, unbiased=False, demean=True, fft=False, missing="none"):
     return acov
 
 
-# see for example
-# http://www.itl.nist.gov/div898/handbook/eda/section3/autocopl.htm
+# see for example http://www.itl.nist.gov/div898/handbook/eda/section3/autocopl.htm
 def acf(
-    x, unbiased=False, nlags=40, qstat=False, fft=False, alpha=None, missing="none"
-):
+    x: np.ndarray,
+    unbiased: bool = False,
+    nlags: int = 40,
+    qstat: bool = False,
+    fft: bool = False,
+    alpha: float | None = None,
+    missing: str = "none",
+) -> Any:
     """
     Autocorrelation function for 1d arrays.
 
@@ -125,15 +156,14 @@ def acf(
     nlags: int, optional
         Number of lags to return autocorrelation for.
     qstat : bool, optional
-        If True, returns the Ljung-Box q statistic for each autocorrelation
-        coefficient.  See q_stat for more information.
+        If True, returns the Ljung-Box q statistic for each autocorrelation coefficient.
+        See q_stat for more information.
     fft : bool, optional
         If True, computes the ACF via FFT.
     alpha : scalar, optional
-        If a number is given, the confidence intervals for the given level are
-        returned. For instance if alpha=.05, 95 % confidence intervals are
-        returned where the standard deviation is computed according to
-        Bartlett\'s formula.
+        If a number is given, the confidence intervals for the given level are returned.
+        For instance if alpha=.05, 95 % confidence intervals are returned where the
+        standard deviation is computed according to Bartlett\'s formula.
     missing : str, optional
         A string in ['none', 'raise', 'conservative', 'drop'] specifying how the NaNs
         are to be treated.
@@ -147,23 +177,22 @@ def acf(
     qstat : array, optional
         The Ljung-Box Q-Statistic.  Returned if q_stat is True.
     pvalues : array, optional
-        The p-values associated with the Q-statistics.  Returned if q_stat is
-        True.
+        The p-values associated with the Q-statistics.  Returned if q_stat is True.
 
     Notes
     -----
     The acf at lag 0 (ie., 1) is returned.
 
-    This is based np.correlate which does full convolution. For very long time
-    series it is recommended to use fft convolution instead.
+    This is based np.correlate which does full convolution. For very long time series it
+    is recommended to use fft convolution instead.
 
-    If unbiased is true, the denominator for the autocovariance is adjusted
-    but the autocorrelation is not an unbiased estimtor.
+    If unbiased is true, the denominator for the autocovariance is adjusted but the
+    autocorrelation is not an unbiased estimtor.
 
     References
     ----------
-    Parzen, E. (1963), "On spectral analysis with missing observations and
-    amplitude modulation", Sankhya: The Indian Journal of Statistics, Series A.
+    Parzen, E. (1963), "On spectral analysis with missing observations and amplitude
+    modulation", Sankhya: The Indian Journal of Statistics, Series A.
 
     """
     nobs = len(x)  # should this shrink for missing='drop' and NaNs in x?
@@ -177,18 +206,20 @@ def acf(
         varacf[1] = 1.0 / nobs
         varacf[2:] *= 1 + 2 * np.cumsum(acf[1:-1] ** 2)
         interval = stats.norm.ppf(1 - alpha / 2.0) * np.sqrt(varacf)
-        confint = np.array(lzip(acf - interval, acf + interval))
+        confint = np.array(list(zip(acf - interval, acf + interval)))
         if not qstat:
             return acf, confint
     if qstat:
-        qstat, pvalue = q_stat(acf[1:], nobs=nobs)  # drop lag 0
+        _qstat, pvalue = _acf_q_stat(acf[1:], nobs=nobs)
         if alpha is not None:
-            return acf, confint, qstat, pvalue
+            return acf, confint, _qstat, pvalue
         else:
-            return acf, qstat, pvalue
+            return acf, _qstat, pvalue
 
 
-def ccovf(x, y, unbiased=True, demean=True):
+def ccovf(
+    x: np.ndarray, y: np.ndarray, unbiased: bool = True, demean: bool = True
+) -> np.ndarray:
     """crosscovariance for 1D
 
     Parameters
@@ -205,8 +236,8 @@ def ccovf(x, y, unbiased=True, demean=True):
 
     Notes
     -----
-    This uses np.correlate which does full convolution. For very long time
-    series it is recommended to use fft convolution instead.
+    This uses np.correlate which does full convolution. For very long time series it is
+    recommended to use fft convolution instead.
     """
     n = len(x)
     if demean:
@@ -217,13 +248,13 @@ def ccovf(x, y, unbiased=True, demean=True):
         yo = y
     if unbiased:
         xi = np.ones(n)
-        d = np.correlate(xi, xi, "full")
+        d: np.ndarray | int = np.correlate(xi, xi, "full")
     else:
         d = n
     return (np.correlate(xo, yo, "full") / d)[n - 1 :]
 
 
-def ccf(x, y, unbiased=True):
+def ccf(x: np.ndarray, y: np.ndarray, unbiased: bool = True) -> np.ndarray:
     """cross-correlation function for 1d
 
     Parameters
@@ -240,30 +271,29 @@ def ccf(x, y, unbiased=True):
 
     Notes
     -----
-    This is based np.correlate which does full convolution. For very long time
-    series it is recommended to use fft convolution instead.
+    This is based np.correlate which does full convolution. For very long time series it
+    is recommended to use fft convolution instead.
 
-    If unbiased is true, the denominator for the autocovariance is adjusted
-    but the autocorrelation is not an unbiased estimtor.
+    If unbiased is true, the denominator for the autocovariance is adjusted but the
+    autocorrelation is not an unbiased estimtor.
 
     """
     cvf = ccovf(x, y, unbiased=unbiased, demean=True)
     return cvf / (np.std(x) * np.std(y))
 
 
-def has_missing(data):
+def has_missing(data: np.ndarray) -> bool:
     """
     Returns True if 'data' contains missing entries, otherwise False
     """
     return np.isnan(np.sum(data))
 
 
-def _next_regular(target):
+def _next_regular(target: int) -> int:
     """
-    Find the next regular number greater than or equal to target.
-    Regular numbers are composites of the prime factors 2, 3, and 5.
-    Also known as 5-smooth numbers or Hamming numbers, these are the optimal
-    size for inputs to FFTPACK.
+    Find the next regular number greater than or equal to target. Regular numbers are
+    composites of the prime factors 2, 3, and 5. Also known as 5-smooth numbers or
+    Hamming numbers, these are the optimal size for inputs to FFTPACK.
 
     Target must be a positive integer.
     """
@@ -274,13 +304,13 @@ def _next_regular(target):
     if not (target & (target - 1)):
         return target
 
-    match = float("inf")  # Anything found will be smaller
+    match: int = 2 * target  # will be replaced by any smaller valid candidate
     p5 = 1
     while p5 < target:
         p35 = p5
         while p35 < target:
-            # Ceiling integer division, avoiding conversion to float
-            # (quotient = ceil(target / p35))
+            # Ceiling integer division, avoiding conversion to float (quotient =
+            # ceil(target / p35))
             quotient = -(-target // p35)
             # Quickly find next power of 2 >= quotient
             try:

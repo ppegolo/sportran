@@ -1,20 +1,22 @@
 # -*- coding: utf-8 -*-
 
 from functools import wraps
+from typing import Any, Callable, TypeVar
+
+F = TypeVar("F", bound=Callable[..., Any])
 
 
-def add_method(cls):
+def add_method(cls: type) -> Callable[[F], F]:
     """A decorator to dynamically add a method to a class."""
 
-    def decorator(func):
+    def decorator(func: F) -> F:
 
         @wraps(func)
-        def wrapper(self, *args, **kwargs):
+        def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
             return func(self, *args, **kwargs)
 
         setattr(cls, func.__name__, wrapper)
-        # Note we are not binding func, but wrapper which accepts self but does exactly the same as func
-        return func  # returning func means func can still be used normally
+        return func
 
     return decorator
 
@@ -32,10 +34,6 @@ def add_method(cls):
 ## setattr(A, 'bar', bar)
 #
 ## Decorator can be written to take normal functions and make them methods
-# @add_method(A)
-# def foo():
-#    print('hello world!')
+# @add_method(A) def foo(): print('hello world!')
 #
-# @add_method(A)
-# def bar(s):
-#    print(f'Message: {s}')
+# @add_method(A) def bar(s): print(f'Message: {s}')

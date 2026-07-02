@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 
+from typing import Any
+
+import numpy as np
+
 from sportran.current import Current
 from sportran.plotter.plotter import plot_fstar_analysis
 from sportran.utils import log
@@ -7,24 +11,35 @@ from sportran.utils import log
 __all__ = ["fstar_analysis"]
 
 
-def fstar_analysis(x, TSKIP_LIST, aic_type='aic', aic_Kmin_corrfactor=1.0, manual_cutoffK=None, plot=True, axes=None,
-                   FIGSIZE=None, verbose=False, **plot_kwargs):  # yapf: disable
+def fstar_analysis(
+    x: Current,
+    TSKIP_LIST: list[int] | np.ndarray,
+    aic_type: str = "aic",
+    aic_Kmin_corrfactor: float = 1.0,
+    manual_cutoffK: int | None = None,
+    plot: bool = True,
+    axes: Any = None,
+    FIGSIZE: tuple[float, float] | None = None,
+    verbose: bool = False,
+    **plot_kwargs: Any,
+) -> Any:
     """
-    Perform cepstral analysis on a set of resampled time series, to study the effect of f*.
-    For each TSKIP in TSKIP_LIST, the HeatCurrent x is filtered & resampled, and then cesptral-analysed.
+    Perform cepstral analysis on a set of resampled time series, to study the effect of
+    f*. For each TSKIP in TSKIP_LIST, the HeatCurrent x is filtered & resampled, and
+    then cesptral-analysed.
 
     Parameters
     ----------
-    TSKIP_LIST    = list of sampling times [steps]
-    aic_type      = the Akaike Information Criterion function used to choose the cutoff ('aic', 'aicc')
-    aic_Kmin_corrfactor = correction factor multiplied by the AIC cutoff (cutoffK = aic_Kmin * aic_Kmin_corrfactor)
-    manual_cutoffK = (P*-1) = manual cutoff. If set, the AIC cutoff will be ignored.
+    TSKIP_LIST    = list of sampling times [steps] aic_type      = the Akaike
+    Information Criterion function used to choose the cutoff ('aic', 'aicc')
+    aic_Kmin_corrfactor = correction factor multiplied by the AIC cutoff (cutoffK =
+    aic_Kmin * aic_Kmin_corrfactor) manual_cutoffK = (P*-1) = manual cutoff. If set, the
+    AIC cutoff will be ignored.
 
-    plot          = plot the PSD (default: True)
-    axes          = matplotlib.axes.Axes object (if None, create one)
-    FIGSIZE       = plot figure size
-    verbose       = verbose output (default: False)
-    **plot_kwargs = other parameters passed to plot function
+    plot          = plot the PSD (default: True) axes          = matplotlib.axes.Axes
+    object (if None, create one) FIGSIZE       = plot figure size verbose       =
+    verbose output (default: False) **plot_kwargs = other parameters passed to plot
+    function
 
     Returns
     -------
@@ -39,6 +54,7 @@ def fstar_analysis(x, TSKIP_LIST, aic_type='aic', aic_Kmin_corrfactor=1.0, manua
     if not isinstance(x, Current):
         raise ValueError("x must be a Current object or a subclass.")
 
+    assert x.Nyquist_f_THz is not None
     xf = []
     for TSKIP in TSKIP_LIST:
         log.write_log(

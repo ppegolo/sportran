@@ -1,40 +1,31 @@
 # -*- coding: utf-8 -*-
 
+from typing import Any
+
 import numpy as np
 
 
 class AR_Model(object):
-    """An AR_Model defines an AutoRegressive process of order P.
-    It is possible to fit a time series to an AR(P) model of order P.
+    """An AR_Model defines an AutoRegressive process of order P."""
 
-    ATTRIBUTES:
-       - P          the order of the AutoRegressive process.
-       - phi        the P parameters of the process.
-       - sigma2     the variance of the innovations.
-
-    """
-
-    def __init__(self, *args, **kwargs):
-        # args -- tuple of anonymous arguments **NOT USED
-        # kwargs -- dictionary of named arguments
-
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         if len(args) == 1:
-            self.P = args[0]
+            self.P: int | None = args[0]
         else:
             self.P = kwargs.get("order", None)
-        self.phi = kwargs.get("phi", None)
-        self.sigma2 = kwargs.get("sigma2", None)
+        self.phi: np.ndarray | None = kwargs.get("phi", None)
+        self.sigma2: float | None = kwargs.get("sigma2", None)
         if self.phi is not None:
             if self.P is None:
                 self.P = self.phi.size
             elif self.phi.size != self.P:
                 raise ValueError("phi array size is different from the given P.")
-        self.phi_std = None
-        self.sigma2_std = None
-        self.cov = None
+        self.phi_std: np.ndarray | None = None
+        self.sigma2_std: float | None = None
+        self.cov: np.ndarray | None = None
         return
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         msg = (
             "AR({}) model:\n".format(self.P)
             + "  phi = {}\n".format(self.phi)
@@ -42,19 +33,18 @@ class AR_Model(object):
         )
         return msg
 
-    def fit(self, traj, order=None):
+    def fit(self, traj: np.ndarray, order: int | None = None) -> None:
         if order is None:
             order = self.P
             if order is None:
                 raise ValueError("P is not defined")
-        # if self.traj is None:
-        #    raise ValueError('Trajectory not loaded')
+        # if self.traj is None: raise ValueError('Trajectory not loaded')
         self.phi, self.sigma2, self.cov = CSS_Solve(traj, order)
         self.phi_std = np.sqrt(np.diag(self.cov)[:-1])
         self.sigma2_std = np.sqrt(self.cov[-1, -1])
         return
 
-    def compute_psd(self, NFREQS, DT=1):
+    def compute_psd(self, NFREQS: int, DT: float = 1) -> tuple[np.ndarray, np.ndarray]:
         """Computes the theoretical periodogram of the AR(p) model."""
         if self.phi is None:
             raise ValueError("AR phi coefficients not defined.")
@@ -62,7 +52,7 @@ class AR_Model(object):
             raise ValueError("AR sigma2 not defined.")
         return ar_psd(self.phi, self.sigma2, NFREQS, DT)
 
-    def compute_tau(self, DT=1):
+    def compute_tau(self, DT: float = 1) -> float | tuple[float, float]:
         """Computes the theoretical zero frequency of the periodogram."""
         if self.phi is None:
             raise ValueError("AR phi coefficients not defined.")
@@ -70,12 +60,13 @@ class AR_Model(object):
             raise ValueError("AR sigma2 not defined.")
         return ar_tau(self.phi, self.sigma2, self.cov, DT)
 
-    def generate_trajectory(self, N):
+    def generate_trajectory(self, N: int) -> np.ndarray:
         """Generates an AR(p) trajectory of length N."""
         if self.phi is None:
             raise ValueError("AR phi coefficients not defined.")
         if self.sigma2 is None:
             raise ValueError("AR sigma2 not defined.")
+        assert self.P is not None
         traj = np.zeros(N + self.P)
         noise_std = np.sqrt(self.sigma2)
         for t in range(self.P, N + self.P):
@@ -90,14 +81,14 @@ class AR_Model(object):
 ################################################################################
 
 
-def CSS_Solve(y, P):
+def CSS_Solve(y: np.ndarray, P: int) -> tuple[np.ndarray, float, np.ndarray]:
     """Solve Conditionate Sum-of-Squares.
 
     INPUT:    y  : time series
               P  : AR order
     RETURNS:  phi    : AR coefficients
-              sigma2 : variance of innovations
-              V      : asymptotic covariance matrix of parameters"""
+              sigma2 : variance of innovations V      : asymptotic covariance matrix of
+              parameters"""
 
     from scipy.linalg import inv, solve
 
@@ -125,10 +116,7 @@ def CSS_Solve(y, P):
     sigma2 = 0.0
     for t in range(P, RUN_TIME):
         sigma2 += (y[t] - np.dot(y[t - P : t], phi[::-1])) ** 2
-        # res = y[t]
-        # for j in range(P):
-        #    res -= phi[j]*y[t-(j+1)]
-        # sigma2 += res**2
+        # res = y[t] for j in range(P): res -= phi[j]*y[t-(j+1)] sigma2 += res**2
     sigma2 *= 1.0 / (RUN_TIME - P)
 
     # compute asymptotic covariance matrix of parameters
@@ -142,19 +130,28 @@ def CSS_Solve(y, P):
     return phi, sigma2, V
 
 
-def ar_psd(AR_phi, AR_sigma2, NFREQS, DT=1):
+def ar_psd(
+    AR_phi: np.ndarray, AR_sigma2: float, NFREQS: int, DT: float = 1
+) -> tuple[np.ndarray, np.ndarray]:
     """Compute psd of an AR(P) process. BE CAREFUL WITH NORMALIZATION IF DT!=1"""
     P = len(AR_phi)
     freqs = np.linspace(0.0, 0.5 / DT, NFREQS + 1)
     AR_psd = np.zeros(freqs.size)
     for i in range(freqs.size):
         phiz = np.sum(AR_phi * np.exp(-2.0j * np.pi * freqs[i] * np.arange(1, P + 1)))
-        # AR_psd[i] = 2. * DT * AR_sigma2 / np.abs( 1. - phiz )**2  # factor 2 comes from one-sided
+        # AR_psd[i] = 2. * DT * AR_sigma2 / np.abs( 1. - phiz )**2  # factor 2 comes
+        # from one-sided
         AR_psd[i] = DT * AR_sigma2 / np.abs(1.0 - phiz) ** 2
     return freqs / DT, AR_psd
 
 
-def ar_tau(AR_phi, AR_sigma2, AR_phi_cov=None, DT=1, RUN_TIME=0):
+def ar_tau(
+    AR_phi: np.ndarray,
+    AR_sigma2: float,
+    AR_phi_cov: np.ndarray | None = None,
+    DT: float = 1,
+    RUN_TIME: int = 0,
+) -> float | tuple[float, float]:
     """Compute tau of an AR(P) process."""
 
     P = AR_phi.size

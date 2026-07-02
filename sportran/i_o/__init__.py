@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-This module includes some utilities to read files in various formats and return numpy arrays
+This module includes some utilities to read files in various formats and return numpy
+arrays
 """
 
 from . import read_lammps_datafile

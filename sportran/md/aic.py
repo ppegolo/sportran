@@ -58,21 +58,23 @@ def dct_aic_ab(
 #
 #                INPUT :
 #
-# - aic: The vector with the estimate of the Akaike information aic(k), with k ranging from k_beg:k_max.
-#         I think it is important to have values till k_max but the first k_beg can be different from one ;
-# - sigma, mean : for the k_beg:k_max, in the same order, the mean and sigmas of the estimate
-#                 of the transport coefficient ;
-# - method : a string equal to 'one' or 'two' with two different methods of inizializing p[k], the estimate probability
-#            of a given k. I hope in real cases the two methods should be equivalent.
+# - aic: The vector with the estimate of the Akaike information aic(k), with k ranging
+#         from k_beg:k_max. I think it is important to have values till k_max but the
+#         first k_beg can be different from one ;
+# - sigma, mean : for the k_beg:k_max, in the same order, the mean and sigmas of the
+#                 estimate of the transport coefficient ;
+# - method : a string equal to 'one' or 'two' with two different methods of inizializing
+#            p[k], the estimate probability of a given k. I hope in real cases the two
+#            methods should be equivalent.
 #
 #                RETURNS:
 #
 # The probability p[ik], grid, and transport-coefficient density obtained as:
-# density[igrid] \sim Sum_ik p[ik] * N[ mean[ik],sigma[ik] ].
-# All pi factors are never inserted and taken care I hope by final normalization.
+# density[igrid] \sim Sum_ik p[ik] * N[ mean[ik],sigma[ik] ]. All pi factors are never
+# inserted and taken care I hope by final normalization.
 #
-# produce_p and produce_p_density split generation of p from density estimation.
-# to provide the final estimate on the transport coefficient
+# produce_p and produce_p_density split generation of p from density estimation. to
+# provide the final estimate on the transport coefficient
 #
 
 
@@ -117,8 +119,8 @@ def produce_p(
 
     else:
         raise KeyError("P_AIC METHOD not valid.")
-    # p[ik] = np.exp(- delta_aic ** 2 / ( 2.0 * ( kM - ik) ) ) / np.sqrt(kM - ik)
-    # p[ik] = np.exp(-delta_aic ** 2 / ( 2.0 * np.abs(ik - k0) )) / np.sqrt(np.abs(ik - k0))
+    # p[ik] = np.exp(- delta_aic ** 2 / ( 2.0 * ( kM - ik) ) ) / np.sqrt(kM - ik) p[ik]
+    # = np.exp(-delta_aic ** 2 / ( 2.0 * np.abs(ik - k0) )) / np.sqrt(np.abs(ik - k0))
 
     # normalize p
     if force_normalize:
@@ -180,9 +182,8 @@ def grid_statistics(
 ) -> tuple[float, float]:
     """Compute distribution mean and standard deviation.
 
-    ``media = sum_i(density[i] * grid[i])``
-    ``std = sqrt(sum_i(density[i] * grid[i]**2) - media**2)``
-    If ``grid2`` is provided, use it for the second moment.
+    ``media = sum_i(density[i] * grid[i])`` ``std = sqrt(sum_i(density[i] * grid[i]**2)
+    - media**2)`` If ``grid2`` is provided, use it for the second moment.
     """
     somma = np.sum(density)
     media = np.dot(density, grid) / somma

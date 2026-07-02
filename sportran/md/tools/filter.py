@@ -3,12 +3,12 @@
 import numpy as np
 
 
-def runavefilter(X, WF):
+def runavefilter(X: np.ndarray, WF: int) -> np.ndarray:
     """Compute a running average over ``WF`` consecutive elements.
 
-    If ``WF`` is even it is increased by one. The input array is assumed to be
-    even (``X[-i] = X[i]``) and anti-periodic (``X[(N-1)+i] = X[(N-1)-i]``),
-    as for a one-sided PSD.
+    If ``WF`` is even it is increased by one. The input array is assumed to be even
+    (``X[-i] = X[i]``) and anti-periodic (``X[(N-1)+i] = X[(N-1)-i]``), as for a
+    one-sided PSD.
     """
 
     if WF % 2 == 0:

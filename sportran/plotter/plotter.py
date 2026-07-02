@@ -1,45 +1,38 @@
 # -*- coding: utf-8 -*-
 """
-Defines an (abstract) Plotter class and all the plot functions that its subclasses can import.
+Defines an (abstract) Plotter class and all the plot functions that its subclasses can
+import.
 """
 
 import math
+from collections.abc import Callable
+from typing import Any
 
 import numpy as np
+from matplotlib.axes import Axes
 from matplotlib.ticker import MultipleLocator
 
-# import the matplotlib pyplot module loaded by the __init__
 from . import plt
 
-# list of colors
 colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 iter_colors = iter(colors)
-################################################################################
 
 
 class Plotter:
-    """
-    Plotter abstract class. Essentially empty.
-    """
-
-    _plot_style = None
-    pass
+    _plot_style: str | None = None
 
 
-################################################################################
-
-
-def _n_tick_in_range(beg, end, n):
+def _n_tick_in_range(beg: float, end: float, n: float) -> tuple[float, float]:
     size = end - beg
     n_cifre = math.floor(math.log(size / n, 10.0))
     delta = math.ceil((size / n) / 10**n_cifre) * 10**n_cifre
     return delta, delta / 2
 
 
-def _index_cumsum(arr, p):
+def _index_cumsum(arr: np.ndarray, p: float) -> int:
     if p > 1 or p < 0:
         raise ValueError("p must be between 0 and 1")
-    arr_int = np.cumsum(arr)
+    arr_int: np.ndarray = np.cumsum(arr)
     arr_int = arr_int / arr_int[-1]
     idx = 0
     while arr_int[idx] < p:
@@ -47,7 +40,7 @@ def _index_cumsum(arr, p):
     return idx
 
 
-def addPlotToPdf(func, pdf, *args, **kwargs):
+def addPlotToPdf(func: Callable[..., Any], pdf: Any, *args: Any, **kwargs: Any) -> Any:
     """Render plot function, save current figure into PDF, and close it."""
     result = func(*args, **kwargs)
     pdf.savefig()
@@ -55,15 +48,13 @@ def addPlotToPdf(func, pdf, *args, **kwargs):
     return result
 
 
-################################################################################
-## Plot functions
-## First argument should be Current or MDSample when method conversion is expected.
-
-
-def plot_trajectory(x, *, axis=None, FIGSIZE=None, **plot_kwargs):
-    """
-    Plot the time series.
-    """
+def plot_trajectory(
+    x: Any,
+    *,
+    axis: Axes | None = None,
+    FIGSIZE: tuple[float, float] | None = None,
+    **plot_kwargs: Any,
+) -> Any:
     if x.traj is None:
         raise ValueError("Trajectory not defined.")
     if axis is None:
@@ -75,44 +66,17 @@ def plot_trajectory(x, *, axis=None, FIGSIZE=None, **plot_kwargs):
 
 
 def plot_periodogram(
-    current,
-    PSD_FILTER_W=None,
+    current: Any,
+    PSD_FILTER_W: int | float | None = None,
     *,
-    freq_units="THz",
-    freq_scale=1.0,
-    axes=None,
-    kappa_units=True,
-    FIGSIZE=None,
-    mode="log",
-    **plot_kwargs,
-):
-    """
-    Plot the current periodogram (PSD).
-
-    Parameters
-    ----------
-    current
-        Current-like object to plot.
-    PSD_FILTER_W
-        Width of the filtering window.
-    freq_units
-        Frequency units: ``'thz'`` or ``'red'``.
-    freq_scale
-        Rescale reduced frequencies by this factor.
-    axes
-        Matplotlib axes (if ``None``, create a new pair).
-    kappa_units
-        Plot PSD in conductivity units when available.
-    FIGSIZE
-        Figure size.
-
-    Returns
-    -------
-    matplotlib.axes.Axes
-        Axes used for the plot.
-    """
-
-    # recompute PSD if needed
+    freq_units: str = "THz",
+    freq_scale: float = 1.0,
+    axes: Any = None,
+    kappa_units: bool = True,
+    FIGSIZE: tuple[float, float] | None = None,
+    mode: str = "log",
+    **plot_kwargs: Any,
+) -> Any:
     if current.psd is None:
         current.compute_psd()
     # (re)compute filtered psd, if a window has been defined
@@ -160,21 +124,18 @@ def plot_periodogram(
 
 
 def plot_cospectrum_component(
-    current,
-    idx1,
-    idx2,
+    current: Any,
+    idx1: int,
+    idx2: int,
     *,
-    axis=None,
-    FIGSIZE=None,
-    f_THz_max=None,
-    k_SI_max=None,
-    k_SI_min=None,
-    k_tick=None,
-    f_tick=None,
-):
-    """
-    Plot the (idx1, idx2) component of the cospectrum.
-    """
+    axis: Axes | None = None,
+    FIGSIZE: tuple[float, float] | None = None,
+    f_THz_max: float | None = None,
+    k_SI_max: float | None = None,
+    k_SI_min: float | None = None,
+    k_tick: float | None = None,
+    f_tick: float | None = None,
+) -> Any:
     if axis is None:
         figure, axis = plt.subplots(1, figsize=FIGSIZE)
     color1 = next(iter_colors)
@@ -196,7 +157,7 @@ def plot_cospectrum_component(
         ]
     else:
         f_THz_max = min(f_THz_max, current.freqs_THz[-1])
-    axis.set_xlim([0, f_THz_max])
+    axis.set_xlim((0, f_THz_max))
     if k_SI_max is None:
         k_SI_max = (
             np.max(
@@ -210,7 +171,7 @@ def plot_cospectrum_component(
         )
     if k_SI_min is None:
         k_SI_min = -k_SI_max
-    axis.set_ylim([k_SI_min, k_SI_max])
+    axis.set_ylim((k_SI_min, k_SI_max))
     axis.set_xlabel(r"$\omega/2\pi$ (THz)")
     axis.set_ylabel(r"$S^{{{}{}}}$".format(idx1, idx2))
 
@@ -229,16 +190,13 @@ def plot_cospectrum_component(
     axis.yaxis.set_minor_locator(MultipleLocator(dy2))
 
 
-def plot_ck(current, *, axis=None, label=None, FIGSIZE=None):
-    """
-    Plots the cepstral coefficients c_K.
-    :param current: current object to plot
-    :param axis: matplotlib.axes.Axes object (if None, create one)
-    :param label:
-    :param FIGSIZE: size of the plot
-
-    :return: a matplotlib.axis.Axes object
-    """
+def plot_ck(
+    current: Any,
+    *,
+    axis: Axes | None = None,
+    label: str | None = None,
+    FIGSIZE: tuple[float, float] | None = None,
+) -> Any:
 
     if axis is None:
         figure, axis = plt.subplots(1, figsize=FIGSIZE)
@@ -254,16 +212,13 @@ def plot_ck(current, *, axis=None, label=None, FIGSIZE=None):
     return axis
 
 
-def plot_L0_Pstar(current, *, axis=None, label=None, FIGSIZE=None):
-    """
-    Plots L0 as a function of P*.
-    :param current:         current object to plot
-    :param axis:            matplotlib.axes.Axes object (if None, create one)
-    :param label:
-    :param FIGSIZE:         size of the plot
-
-    :return: a matplotlib.axis.Axes object
-    """
+def plot_L0_Pstar(
+    current: Any,
+    *,
+    axis: Axes | None = None,
+    label: str | None = None,
+    FIGSIZE: tuple[float, float] | None = None,
+) -> Any:
     if axis is None:
         figure, axis = plt.subplots(1, figsize=FIGSIZE)
     color = next(iter_colors)  # quick fix to avoid error with mlp>=3.8
@@ -284,7 +239,7 @@ def plot_L0_Pstar(current, *, axis=None, label=None, FIGSIZE=None):
     )
     axis.axvline(x=current.cepf.aic_Kmin + 1, ls=":", c=color)
     axis.axvline(x=current.cepf.cutoffK + 1, ls="--", c=color)
-    axis.set_xlim([0, 3 * current.cepf.cutoffK])
+    axis.set_xlim((0, 3 * current.cepf.cutoffK))
     max_y = np.amax(
         (current.cepf.logtau + current.cepf.logtau_THEORY_std)[
             current.cepf.cutoffK : 3 * current.cepf.cutoffK
@@ -295,33 +250,24 @@ def plot_L0_Pstar(current, *, axis=None, label=None, FIGSIZE=None):
             current.cepf.cutoffK : 3 * current.cepf.cutoffK
         ]
     )
-    axis.set_ylim([min_y * 0.8, max_y * 1.2])
+    axis.set_ylim((min_y * 0.8, max_y * 1.2))
     axis.set_xlabel(r"$P^*$")
     axis.set_ylabel(r"$L_0(P*)$")
     return axis
 
 
 def plot_kappa_Pstar(
-    current,
+    current: Any,
     *,
-    axis=None,
-    label=None,
-    FIGSIZE=None,
-    pstar_max=None,
-    kappa_SI_min=None,
-    kappa_SI_max=None,
-    pstar_tick=None,
-    kappa_tick=None,
-):
-    """
-    Plots the value of kappa as a function of P*.
-    :param current: current object to plot
-    :param axis: matplotlib.axes.Axes object (if None, create one)
-    :param label:
-    :param FIGSIZE: size of the plot
-
-    :return: a matplotlib.axes.Axes object
-    """
+    axis: Axes | None = None,
+    label: str | None = None,
+    FIGSIZE: tuple[float, float] | None = None,
+    pstar_max: int | None = None,
+    kappa_SI_min: float | None = None,
+    kappa_SI_max: float | None = None,
+    pstar_tick: float | None = None,
+    kappa_tick: float | None = None,
+) -> Any:
     if axis is None:
         figure, axis = plt.subplots(1, figsize=FIGSIZE)
     color = next(iter_colors)
@@ -344,7 +290,7 @@ def plot_kappa_Pstar(
     axis.axhline(y=current.kappa, ls="--", c=color)
     if pstar_max is None:
         pstar_max = int(round((current.cepf.cutoffK + 1) * 2.5))
-    axis.set_xlim([0, pstar_max])
+    axis.set_xlim((0, pstar_max))
     if kappa_SI_max is None:
         kappa_SI_max = 1.2 * np.amax(
             current.KAPPA_SCALE
@@ -361,7 +307,7 @@ def plot_kappa_Pstar(
                 current.cepf.cutoffK : pstar_max
             ]
         )
-    axis.set_ylim([kappa_SI_min, kappa_SI_max])
+    axis.set_ylim((kappa_SI_min, kappa_SI_max))
     axis.set_xlabel(r"$P^*$")
     axis.set_ylabel(r"$\kappa(P^*)$ [{}]".format(current._KAPPA_SI_UNITS))
     if pstar_tick is None:
@@ -380,29 +326,16 @@ def plot_kappa_Pstar(
 
 
 def plot_cepstral_spectrum(
-    current,
+    current: Any,
     *,
-    freq_units='THz',
-    freq_scale=1.0,
-    axes=None,
-    kappa_units=True,
-    FIGSIZE=None,
-    mode='log',
-    **plot_kwargs
-):  # yapf: disable
-    """
-    Plots the cepstral spectrum.
-
-    :param current:         current object to plot
-    :param freq_units:      'thz'  [THz]
-                            'red'  [omega*DT/(2*pi)]
-    :param freq_scale:      rescale red frequencies by this factor (e.g. 2 --> freq = [0, 0.25])
-    :param axes:            matplotlib.axes.Axes object (if None, create one)
-    :param kappa_units:     plot periodograms in units of kappa (default: True) - NB: log-psd not converted
-    :param FIGSIZE:         size of the plot
-
-    :return: a matplotlib.axes.Axes object
-    """
+    freq_units: str = "THz",
+    freq_scale: float = 1.0,
+    axes: Any = None,
+    kappa_units: bool = True,
+    FIGSIZE: tuple[float, float] | None = None,
+    mode: str = "log",
+    **plot_kwargs: Any,
+) -> Any:
     if axes is None:
         figure, axes = plt.subplots(2, sharex=True, figsize=FIGSIZE)
     plt.subplots_adjust(hspace=0.1)
@@ -443,17 +376,14 @@ def plot_cepstral_spectrum(
 
 
 def plot_fstar_analysis(
-    currents,
-    FSTAR_THZ_LIST,
-    original_current=None,
+    currents: Any,
+    FSTAR_THZ_LIST: list[float] | np.ndarray,
+    original_current: Any = None,
     *,
-    axes=None,
-    FIGSIZE=None,
-    **plot_kwargs,
-):
-    """
-    Plots kappa(P*) as a function of the f*.
-    """
+    axes: Any = None,
+    FIGSIZE: tuple[float, float] | None = None,
+    **plot_kwargs: Any,
+) -> Any:
     if axes is None:
         figure, axes = plt.subplots(2, sharex=True, figsize=FIGSIZE)
         return_axes = True
@@ -496,30 +426,15 @@ def plot_fstar_analysis(
 
 
 def plot_resample(
-    x, xf, PSD_FILTER_W=None, *, freq_units="THz", axes=None, FIGSIZE=None, mode="log"
-):
-    """
-    Plot periodograms of original and filtered/resampled series.
-
-    Parameters
-    ----------
-    x
-        Original time-series object.
-    xf
-        Filtered and resampled time-series object.
-    freq_units
-        Frequency units: ``'thz'`` or ``'red'``.
-    PSD_FILTER_W
-        PSD filtering window width.
-    FIGSIZE
-        Figure size.
-
-    Returns
-    -------
-    matplotlib.axes.Axes
-        Axes used for the comparison plot.
-
-    """
+    x: Any,
+    xf: Any,
+    PSD_FILTER_W: int | float | None = None,
+    *,
+    freq_units: str = "THz",
+    axes: Any = None,
+    FIGSIZE: tuple[float, float] | None = None,
+    mode: str = "log",
+) -> Any:
     fstar_THz = xf.Nyquist_f_THz
     TSKIP = int(x.Nyquist_f_THz / xf.Nyquist_f_THz)
 
@@ -563,8 +478,14 @@ def plot_resample(
 
 
 def plot_psd(
-    jf, j2=None, j2pl=None, f_THz_max=None, k_SI_max=None, k_tick=None, f_tick=None
-):
+    jf: Any,
+    j2: Any | None = None,
+    j2pl: Any | None = None,
+    f_THz_max: float | None = None,
+    k_SI_max: float | None = None,
+    k_tick: float | None = None,
+    f_tick: float | None = None,
+) -> Any:
     """Plot legacy PSD view for filtered and optional comparison datasets."""
     if f_THz_max is None:
         idx_max = _index_cumsum(jf.psd, 0.95)

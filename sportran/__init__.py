@@ -4,17 +4,14 @@
 Sportran library
 ==========================
 
-This is the core library containing all the code necessary to perform a nice
-and fast cepstral analysis on your time series.
+This is the core library containing all the code necessary to perform a nice and fast
+cepstral analysis on your time series.
 """
+
+from importlib.metadata import version as _pkg_version
 
 from . import current, i_o, md, plotter, utils
 from .current import *
-
-try:
-    from importlib.metadata import version as _pkg_version
-except ImportError:  # pragma: no cover
-    from importlib_metadata import version as _pkg_version
 
 __all__ = current.__all__ + md.__all__
 
@@ -25,8 +22,9 @@ except Exception:  # pragma: no cover
     __version__ = "1.0.0rc4"
 __authors__ = "Loris Ercole, Riccardo Bertossa, Sebastiano Bisacchi"
 __paper__ = (
-    'L. Ercole, R. Bertossa, S. Bisacchi, S.Baroni, "SporTran: a code to estimate transport coefficients from the '
-    'cepstral analysis of (multivariate) current time series", arXiV:2202.11571 (2022), submitted to Computer'
-    "Physics Communications, https://doi.org/10.48550/arXiv.2202.11571"
+    "L. Ercole, R. Bertossa, S. Bisacchi, S. Baroni, "
+    '"SporTran: a code to estimate transport coefficients from the cepstral analysis of '
+    '(multivariate) current time series", arXiv:2202.11571 (2022), '
+    "https://doi.org/10.48550/arXiv.2202.11571"
 )
 __paper_short__ = "L. Ercole et al., arXiv:2202.117571 (2022)"

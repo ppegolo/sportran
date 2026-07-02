@@ -1,36 +1,49 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
 
 from sportran.utils import log
 
 from .tools.resample import filter_and_sample
 
+if TYPE_CHECKING:
+    from .mdsample import MDSample
 
-def resample_timeseries(x, TSKIP=None, fstar_THz=None, FILTER_W=None, plot=False, PSD_FILTER_W=None, freq_units='THz',
-                        FIGSIZE=None, verbose=True):  # yapf: disable
+
+def resample_timeseries(
+    x: MDSample,
+    TSKIP: int | None = None,
+    fstar_THz: float | None = None,
+    FILTER_W: int | None = None,
+    plot: bool = False,
+    PSD_FILTER_W: float | int | None = None,
+    freq_units: str = "THz",
+    FIGSIZE: tuple[float, float] | None = None,
+    verbose: bool = True,
+) -> Any:
     """
     Simulate the resampling of a time series x.
 
     Parameters
     ----------
-    x            = the time series object, a (subclass of) MDSample
-    TSKIP        = sampling time [steps]
-    fstar_THz    = target cutoff frequency [THz]
-    TSKIP and fstar_THZ are mutually exclusive.
+    x            = the time series object, a (subclass of) MDSample TSKIP        =
+    sampling time [steps] fstar_THz    = target cutoff frequency [THz] TSKIP and
+    fstar_THZ are mutually exclusive.
 
-    FILTER_W     = pre-sampling filter window width [steps]
-    plot         = plot the PSD [False]
-    PSD_FILTER_W = PSD filtering window width [chosen frequency units]
+    FILTER_W     = pre-sampling filter window width [steps] plot         = plot the PSD
+    [False] PSD_FILTER_W = PSD filtering window width [chosen frequency units]
     freq_units   = 'thz'  [THz]
                    'red'  [omega*DT/(2*pi)]
-    FIGSIZE      = plot figure size
-    verbose      = print log [True]
+    FIGSIZE      = plot figure size verbose      = print log [True]
 
     Returns
     -------
-    xf : a filtered & resampled time series object
-    ax : an array of plot axes, optional (if plot=True)
+    xf : a filtered & resampled time series object ax : an array of plot axes, optional
+    (if plot=True)
     """
     from .mdsample import MDSample
 
@@ -46,21 +59,27 @@ def resample_timeseries(x, TSKIP=None, fstar_THz=None, FILTER_W=None, plot=False
         )  # this ensures that Nyquist_f_THz is defined
     if fstar_THz:
         # find TSKIP that gives the closest fstar
+        assert x.Nyquist_f_THz is not None
         TSKIP = int(round(x.Nyquist_f_THz / fstar_THz))
+        assert isinstance(TSKIP, int)
     if FILTER_W is None:
         FILTER_W = TSKIP
     if plot:
         raise NotImplementedError()
 
+    assert x.Nyquist_f_THz is not None and isinstance(TSKIP, int)
     fstar_THz = x.Nyquist_f_THz / TSKIP
     fstar_idx = np.argmin(x.freqs_THz < fstar_THz)
 
-    # get the builder of the original time series object
-    # builder is a dictionary containing the parameters to define the new time series
+    # get the builder of the original time series object builder is a dictionary
+    # containing the parameters to define the new time series
     TimeSeries, builder = x._get_builder()
     trajectory = builder["traj"]
 
     # filter & resample time series -- for 3D time series, apply to each row
+    assert isinstance(trajectory, np.ndarray)
+    assert FILTER_W is not None
+    assert TSKIP is not None
     if len(trajectory.shape) == 3:
         new_trajectory = np.array(
             [
@@ -78,22 +97,27 @@ def resample_timeseries(x, TSKIP=None, fstar_THz=None, FILTER_W=None, plot=False
     xf = TimeSeries(**builder)
 
     # define new filtering window width to be equal to the original one
-    new_PSD_FILTER_W = (
-        x.PSD_FILTER_W_THZ if freq_units in ("THz", "thz") else x.PSD_FILTER_W * TSKIP
-    )
+    if freq_units in ("THz", "thz") and x.PSD_FILTER_W_THZ is not None:
+        new_PSD_FILTER_W = x.PSD_FILTER_W_THZ
+    elif x.PSD_FILTER_W is not None:
+        new_PSD_FILTER_W = x.PSD_FILTER_W * TSKIP
+    else:
+        new_PSD_FILTER_W = None
     if xf.psd is None:
         xf.compute_psd(
             new_PSD_FILTER_W, freq_units
         )  # this ensures that Nyquist_f_THz is defined
 
     # write log
+    assert x.DT_FS is not None
+    assert x.Nyquist_f_THz is not None
     xf.resample_log = (
         "-----------------------------------------------------\n"
         + "  RESAMPLE TIME SERIES\n"
         + "-----------------------------------------------------\n"
         + " Original Nyquist freq  f_Ny =  {:12.5f} THz\n".format(x.Nyquist_f_THz)
         + " Resampling freq          f* =  {:12.5f} THz\n".format(fstar_THz)
-        + " Sampling time         TSKIP =  {:12d} steps\n".format(TSKIP)
+        + " Sampling time         TSKIP =  {:12} steps\n".format(TSKIP)
         + "                             =  {:12.3f} fs\n".format(TSKIP * x.DT_FS)
         + " Original  n. of frequencies =  {:12d}\n".format(x.NFREQS)
         + " Resampled n. of frequencies =  {:12d}\n".format(xf.NFREQS)
@@ -101,6 +125,8 @@ def resample_timeseries(x, TSKIP=None, fstar_THz=None, FILTER_W=None, plot=False
     if (
         x.fpsd is not None and xf.fpsd is not None
     ):  # TODO: maybe substitute with if x.PSD_FILTER_W != 0
+        assert x.fpsd is not None and xf.fpsd is not None
+        assert x.flogpsd is not None and xf.flogpsd is not None
         xf.resample_log += (
             " PSD      @cutoff  (pre-filter&sample) ~ {:12.5f}\n".format(
                 x.fpsd[fstar_idx]
@@ -113,6 +139,7 @@ def resample_timeseries(x, TSKIP=None, fstar_THz=None, FILTER_W=None, plot=False
                 xf.flogpsd[-1]
             )
         )
+    assert x.psd is not None
     xf.resample_log += (
         " min(PSD)          (pre-filter&sample) = {:12.5f}\n".format(x.psd_min)
         + " min(PSD)         (post-filter&sample) = {:12.5f}\n".format(xf.psd_min)

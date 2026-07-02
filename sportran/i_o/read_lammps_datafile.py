@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
 
-################################################################################
-###
+################################################################################ ##
 ###   ReadLAMMPSdatafile
-###
-################################################################################
+### ###############################################################################
 
 import numpy as np
 
 
-def get_box(filename):
+def get_box(filename: str) -> tuple[np.ndarray, float]:
     """Return the box edges and volume from a LAMMPS Data file."""
     box = np.zeros((2, 3))
     with open(filename, "r") as f:

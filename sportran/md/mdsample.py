@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from typing import Any
+
 import numpy as np
 from scipy.signal import periodogram
 
@@ -20,23 +22,30 @@ class MDSample(object):
     """
     Representation of a single molecular-dynamics sample.
 
-    The object can store trajectory, spectrum, and periodogram data while
-    keeping derived quantities internally consistent.
+    The object can store trajectory, spectrum, and periodogram data while keeping
+    derived quantities internally consistent.
 
-    Main attributes include ``traj``, ``spectr``, ``psd``, ``freqs``,
-    ``freqs_THz``, ``DT_FS``, ``fpsd``, ``flogpsd``, and ``acf``.
+    Main attributes include ``traj``, ``spectr``, ``psd``, ``freqs``, ``freqs_THz``,
+    ``DT_FS``, ``fpsd``, ``flogpsd``, and ``acf``.
 
     """
 
-    _default_plotter = MDSamplePlotter
+    _default_plotter: type[Plotter] = MDSamplePlotter
 
-    def __init__(self, traj=None, spectr=None, psd=None, freqs=None, DT_FS=1.0):
+    def __init__(
+        self,
+        traj: np.ndarray | None = None,
+        spectr: np.ndarray | None = None,
+        psd: np.ndarray | None = None,
+        freqs: np.ndarray | None = None,
+        DT_FS: float = 1.0,
+    ) -> None:
         self.DT_FS = DT_FS
         self.initialize_traj(traj)
         self.initialize_spectrum(spectr)
         self.initialize_psd(freqs=freqs, psd=psd, DT_FS=DT_FS)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         msg = (
             "MDSample:\n"
             + "  DT_FS:  {}  fs\n".format(self.DT_FS)
@@ -69,28 +78,20 @@ class MDSample(object):
             msg += "  acf:    {}  lags\n".format(self.NLAGS)
         return msg
 
-    def _get_builder(self):
-        """
-        Get a tuple (class, builder) that can be used to build a new object with same parameters:
-          TimeSeries, builder = self._get_builder()
-          new_ts = TimeSeries(**builder)
-        """
-        kwargs = dict(traj=self.traj, DT_FS=self.DT_FS)
+    def _get_builder(self) -> tuple[type, dict[str, np.ndarray | float | None]]:
+        kwargs: dict[str, np.ndarray | float | None] = dict(
+            traj=self.traj, DT_FS=self.DT_FS
+        )
         return type(self), kwargs
 
     @classmethod
-    def set_plotter(cls, plotter=None):
-        """
-        Set the plotter class.
-        The _plotter attribute will contain the selected plotter class.
-        All the plot functions of plotter (named 'plot_*') will be transformed into methods of Current.
-        """
+    def set_plotter(cls, plotter: type[Plotter] | None = None) -> None:
         if plotter is None:
             plotter = cls._default_plotter
         if not (isinstance(plotter, Plotter) or issubclass(plotter, Plotter)):
             raise TypeError("Invalid plotter")
 
-        cls._plotter = plotter
+        cls._plotter = plotter  # type: ignore[attr-defined]
         use_plot_style(plotter._plot_style)
 
         # delete any plot function already present in this class
@@ -105,39 +106,27 @@ class MDSample(object):
                 except AttributeError:
                     pass
 
-        # loop over all functions of the plotter class, and transform them into methods of Current
+        # loop over all functions of the plotter class, and transform them into methods
+        # of Current
         for funcname in filter(lambda name: name.startswith("plot_"), dir(plotter)):
             obj = getattr(plotter, funcname)
             if callable(obj):
                 add_method(cls)(obj)
                 # print('{} added to class {}'.format(obj, cls))
 
-    #############################################
-    ###################################
+    ############################################# ##################################
     ###  INITIALIZE METHODS
-    ###################################
-    #############################################
+    ################################### ############################################
 
-    def initialize_traj(self, array):
-        """
-        Initialize a trajectory from an array.
-
-        The dimensions of the array should be:
-
-          (number of time points, number of equivalent components)
-
-        or, in the case of one component:
-
-          (number of time points)
-        """
+    def initialize_traj(self, array: list | np.ndarray | tuple | None) -> None:
         if not isinstance(array, (list, np.ndarray, tuple)):
             raise TypeError("Input trajectory must be an array.")
         if array is not None:
             array = np.array(array, dtype=float)
-            if len(array.shape) == 1:
+            if isinstance(array, np.ndarray) and len(array.shape) == 1:
                 self.MANY_EQUIV_COMPONENTS = False
                 self.traj = array[:, np.newaxis]
-            elif len(array.shape) == 2:
+            elif isinstance(array, np.ndarray) and len(array.shape) == 2:
                 self.MANY_EQUIV_COMPONENTS = True
                 if array.shape[0] % 2 == 1:
                     self.traj = array[:-1]
@@ -159,10 +148,10 @@ class MDSample(object):
             self.traj = None
             self.N = None
             self.N_EQUIV_COMPONENTS = None
-        self.acf = None
-        self.NLAGS = None
+        self.acf: np.ndarray | None = None
+        self.NLAGS: int | None = None
 
-    def initialize_spectrum(self, array):
+    def initialize_spectrum(self, array: np.ndarray | list | None) -> None:
         if array is not None:
             self.spectr = np.array(array, dtype=complex)
             self.NFREQS = self.spectr.size
@@ -172,17 +161,13 @@ class MDSample(object):
             self.NFREQS = None
             self.DF = None
 
-    def initialize_psd(self, freq_psd=None, psd=None, freqs=None, DT_FS=None):
-        """
-        Initialize the PSD. This can be done in 3 ways:
-          - passing a tuple  (freqs, psd)
-              e.g.   initialize_psd((freqs,psd))
-          - passing frequencies and PSD separately
-              e.g.   initialize_psd(freqs, psd)
-              e.g.   initialize_psd(freqs=freqs, psd=psd)
-          - passing PSD only (frequencies will be computed automatically)
-              e.g.   initialize_psd(psd)
-        """
+    def initialize_psd(
+        self,
+        freq_psd: np.ndarray | tuple | None = None,
+        psd: np.ndarray | None = None,
+        freqs: np.ndarray | None = None,
+        DT_FS: float | None = None,
+    ) -> None:
         # frequencies
         if freq_psd is not None:  # use freq_psd variable
             if len(freq_psd) == 2:  # (freqs, psd) tuple was passed
@@ -209,11 +194,12 @@ class MDSample(object):
 
         self.psd = None
         self.freqs = None
-        self.fpsd = None
-        self.flogpsd = None
-        self.PSD_FILTER_W = None
-        self.PSD_FILTER_W_THZ = None
-        self.PSD_FILTER_WF = None
+        self.fpsd: np.ndarray | None = None
+        self.flogpsd: np.ndarray | None = None
+        self.Nyquist_f_THz: float | None = None
+        self.PSD_FILTER_W: float | None = None
+        self.PSD_FILTER_W_THZ: float | None = None
+        self.PSD_FILTER_WF: int | None = None
 
         # PSD
         if array is None:
@@ -234,31 +220,26 @@ class MDSample(object):
         # freqs conversions to THz
         if DT_FS is not None:
             self.DT_FS = DT_FS
-        self.freqs_THz = freq_red_to_THz(self.freqs, self.DT_FS)
-        self.Nyquist_f_THz = self.freqs_THz[-1]
+        self.freqs_THz: np.ndarray = freq_red_to_THz(self.freqs, self.DT_FS)
+        self.Nyquist_f_THz = float(self.freqs_THz[-1])
         self.DF = 0.5 / (self.NFREQS - 1)
         self.DF_THZ = freq_red_to_THz(self.DF, self.DT_FS)
 
-    #############################################
-    ###################################
+    ############################################# ##################################
     ###  COMPUTE METHODS
-    ###################################
-    #############################################
+    ################################### ############################################
 
-    def timeseries(self):
-        """Return a time series (fs units)."""
+    def timeseries(self) -> np.ndarray:
         return np.arange(self.N) * self.DT_FS
 
-    def compute_trajectory(self):
-        """Compute trajectory from spectrum by IFFT."""
+    def compute_trajectory(self) -> None:
         if self.spectr is None:
             raise ValueError("Spectrum not defined.")
-        full_spectr = np.append(self.spectr, self.spectr[-2:0:-1].conj())
+        full_spectr: np.ndarray = np.append(self.spectr, self.spectr[-2:0:-1].conj())
         self.traj = np.real(np.fft.ifft(full_spectr))  # *np.sqrt(self.NFREQS-1)
         self.N = self.traj.size
 
-    def compute_spectrum(self):
-        """Compute spectrum from trajectory by FFT."""
+    def compute_spectrum(self) -> None:
         if self.traj is None:
             raise ValueError("Trajectory not defined.")
         full_spectr = np.fft.fft(self.traj)
@@ -268,18 +249,12 @@ class MDSample(object):
 
     def compute_psd(
         self,
-        PSD_FILTER_W=None,
-        freq_units="THz",
-        method="trajectory",
-        DT_FS=None,
-        normalize=False,
-    ):
-        # overridden in HeatCurrent (will call, at the end, this method)
-        """
-        Compute the periodogram from the trajectory or the spectrum.
-        If a PSD_FILTER_W (expressed in freq_units) is known or given, the psd is also filtered.
-        The PSD is multiplied by DT_FS at the end.
-        """
+        PSD_FILTER_W: float | None = None,
+        freq_units: str = "THz",
+        method: str = "trajectory",
+        DT_FS: float | None = None,
+        normalize: bool = False,
+    ) -> None:
         if DT_FS is not None:
             self.DT_FS = DT_FS
         if method == "trajectory":
@@ -301,7 +276,7 @@ class MDSample(object):
             raise KeyError("method not understood")
 
         self.freqs_THz = self.freqs / self.DT_FS * 1000.0
-        self.Nyquist_f_THz = self.freqs_THz[-1]
+        self.Nyquist_f_THz = float(self.freqs_THz[-1])
         if normalize:
             self.psd = self.psd / np.trapezoid(self.psd) / self.N / self.DT_FS
         self.logpsd = np.log(self.psd)
@@ -314,19 +289,14 @@ class MDSample(object):
 
     def filter_psd(
         self,
-        PSD_FILTER_W=None,
-        freq_units="THz",
-        window_type="rectangular",
-        logpsd_filter_type=1,
-    ):
-        """
-        Filter the periodogram with the given PSD_FILTER_W [freq_units].
-          - PSD_FILTER_W  PSD filter window [freq_units]
-          - freq_units    frequency units   ['THz' (default), 'red']
-          - window_type   filtering window type ['rectangular']
-        """
+        PSD_FILTER_W: float | None = None,
+        freq_units: str = "THz",
+        window_type: str = "rectangular",
+        logpsd_filter_type: int = 1,
+    ) -> None:
         if self.psd is None:
             raise ValueError("Periodogram is not defined.")
+        assert self.DT_FS is not None
         if PSD_FILTER_W is not None:
             if freq_units in ("THz", "thz"):
                 self.PSD_FILTER_W_THZ = PSD_FILTER_W
@@ -344,29 +314,31 @@ class MDSample(object):
             raise ValueError("Filter window width not defined.")
 
         if window_type == "rectangular":
+            assert self.PSD_FILTER_WF is not None
             self.fpsd = runavefilter(self.psd, self.PSD_FILTER_WF)
 
             # filter log-psd
             if logpsd_filter_type == 1:
+                assert self.PSD_FILTER_WF is not None
                 self.flogpsd = runavefilter(self.logpsd, self.PSD_FILTER_WF)
             else:
                 self.flogpsd = np.log(self.fpsd)
         else:
             raise KeyError("Window type unknown.")
 
-    def compute_acf(self, NLAGS=None):
-        """Computes the autocovariance function of the trajectory."""
+    def compute_acf(self, NLAGS: int | None = None) -> None:
         if NLAGS is not None:
             self.NLAGS = NLAGS
         else:
             self.NLAGS = self.N
-        self.acf = np.zeros((self.NLAGS, self.N_EQUIV_COMPONENTS))
+        n_lags = self.NLAGS if NLAGS is None else NLAGS
+        self.NLAGS = n_lags
+        self.acf = np.zeros((n_lags, self.N_EQUIV_COMPONENTS))
         for d in range(self.N_EQUIV_COMPONENTS):
-            self.acf[:, d] = acovf(self.traj[:, d], unbiased=True, fft=True)[:NLAGS]
+            self.acf[:, d] = acovf(self.traj[:, d], unbiased=True, fft=True)[:n_lags]
         self.acfm = np.mean(self.acf, axis=1)  # average acf
 
-    def compute_gkintegral(self):
-        """Compute the integral of the autocovariance function."""
+    def compute_gkintegral(self) -> None:
         if self.acf is None:
             raise RuntimeError("Autocovariance is not defined.")
         self.tau = integrate_acf(self.acf)
@@ -374,37 +346,15 @@ class MDSample(object):
 
     def resample(
         self,
-        TSKIP=None,
-        fstar_THz=None,
-        FILTER_W=None,
-        plot=False,
-        PSD_FILTER_W=None,
-        freq_units='THz',
-        FIGSIZE=None,
-        verbose=True,
-    ):  # yapf: disable
-        """
-        Simulate the resampling of the time series.
-
-        Parameters
-        ----------
-        TSKIP        = sampling time [steps]
-        fstar_THz    = target cutoff frequency [THz]
-        TSKIP and fstar_THZ are mutually exclusive.
-
-        FILTER_W     = pre-sampling filter window width [steps]
-        plot         = plot the PSD [False]
-        PSD_FILTER_W = PSD filtering window width [chosen frequency units]
-        freq_units   = 'thz'  [THz]
-                       'red'  [omega*DT/(2*pi)]
-        FIGSIZE      = plot figure size
-        verbose      = print log [True]
-
-        Returns
-        -------
-        xf : a filtered & resampled time series object
-        ax : an array of plot axes, optional (if plot=True)
-        """
+        TSKIP: int | None = None,
+        fstar_THz: float | None = None,
+        FILTER_W: int | None = None,
+        plot: bool = False,
+        PSD_FILTER_W: float | None = None,
+        freq_units: str = "THz",
+        FIGSIZE: tuple[float, float] | None = None,
+        verbose: bool = True,
+    ) -> Any:
         return resample_timeseries(
             self,
             TSKIP,

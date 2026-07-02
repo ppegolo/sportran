@@ -1,38 +1,36 @@
 # -*- coding: utf-8 -*-
-"""
-Defines the MDSamplePlotter class.
-"""
+
+from typing import Any
+
+from . import plotter
+from .plotter import plot_resample as _plot_resample
+from .plotter import plot_trajectory as _plot_trajectory
 
 __all__ = ["MDSamplePlotter"]
 
-from . import plotter
-
 
 class MDSamplePlotter(plotter.Plotter):
-    """
-    A Plotter subclass containing the plot functions used by an object of type MDSample.
-    """
-
-    from .plotter import plot_resample, plot_trajectory
+    plot_resample = _plot_resample
+    plot_trajectory = _plot_trajectory
 
     _plot_style = "api_style.mplstyle"
 
     def plot_periodogram(
-        current,
-        PSD_FILTER_W=None,
+        current: Any,
+        PSD_FILTER_W: int | float | None = None,
         *,
-        freq_units="THz",
-        freq_scale=1.0,
-        axes=None,
-        FIGSIZE=None,
-        mode="log",
-        **plot_kwargs,
-    ):
+        freq_units: str = "THz",
+        freq_scale: float = 1.0,
+        axes: Any = None,
+        FIGSIZE: tuple[float, float] | None = None,
+        mode: str = "log",
+        **plot_kwargs: Any,
+    ) -> Any:
         """
         Plot an ``MDSample`` periodogram.
 
-        Parameters match :func:`sportran.plotter.plotter.plot_periodogram`,
-        except that ``kappa_units`` is always disabled for ``MDSample``.
+        Parameters match :func:`sportran.plotter.plotter.plot_periodogram`, except that
+        ``kappa_units`` is always disabled for ``MDSample``.
         """
         # kappa_units is not supported by MDSample
         from .plotter import plot_periodogram

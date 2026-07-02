@@ -1,6 +1,8 @@
-# -*- coding: utf-8 -*-
-# Methods to perform a bayesian estimation of the transport coefficients
+# -*- coding: utf-8 -*- Methods to perform a bayesian estimation of the transport
+# coefficients
 
+
+from typing import Callable
 
 import emcee
 import numpy as np
@@ -27,24 +29,24 @@ class BayesFilter(object):
     """
     Bayesian filtering for transport-coefficient estimation.
 
-    The main inputs are the spectrum, model function, and model-parameter count.
-    During analysis, this class computes cepstral and AIC-related quantities,
-    then estimates filtered ``logtau``/``tau`` values and their uncertainties.
+    The main inputs are the spectrum, model function, and model-parameter count. During
+    analysis, this class computes cepstral and AIC-related quantities, then estimates
+    filtered ``logtau``/``tau`` values and their uncertainties.
     """
 
     def __init__(
         self,
-        spectrum,
-        model,
-        n_parameters,
-        n_components,
-        is_restart=False,
-        n_steps=2000000,
-        backend="chain.h5",
-        burn_in=None,
-        thin=None,
-        mask=None,
-    ):
+        spectrum: np.ndarray,
+        model: Callable[[np.ndarray, np.ndarray], Callable[[np.ndarray], np.ndarray]],
+        n_parameters: int,
+        n_components: int,
+        is_restart: bool = False,
+        n_steps: int = 2000000,
+        backend: str = "chain.h5",
+        burn_in: int | None = None,
+        thin: int | None = None,
+        mask: np.ndarray | None = None,
+    ) -> None:
 
         if not isinstance(spectrum, np.ndarray):
             raise TypeError("spectrum should be an object of type numpy.ndarray")
@@ -57,18 +59,19 @@ class BayesFilter(object):
         self.n_components = n_components
         self.n_parameters = n_parameters
         self.is_restart = is_restart
+        self.samplelogpsd: np.ndarray
+        self.aic_Kmin: int
         self.n_steps = n_steps
         self.backend = backend
         self.burn_in = burn_in
         self.thin = thin
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         msg = "BayesFilter:\n"  # + \
         #   '  AIC type  = {:}\n'.format(self.aic_type) + \
         #   '  AIC min   = {:f}\n'.format(self.aic_min) + \
-        #   '  AIC_Kmin  = {:d}\n'.format(self.aic_Kmin)
-        # if self.cutoffK is not None:
-        #     msg += \
+        #   '  AIC_Kmin  = {:d}\n'.format(self.aic_Kmin) if self.cutoffK is not None:
+        # msg += \
         #         '  AIC_Kmin_corrfactor = {:f}\n'.format(self.aic_Kmin_corrfactor) + \
         #         '  cutoffK = (P*-1) = {:d} {:}\n'.format(self.cutoffK, '(manual)' if self.manual_cutoffK_flag else '(auto)') + \
         #         '  L_0*   = {:15f} +/- {:10f}\n'.format(self.logtau_cutoffK, self.logtau_std_cutoffK) + \
@@ -79,14 +82,14 @@ class BayesFilter(object):
 
     def run_mcmc(
         self,
-        n_parameters=None,
-        n_steps=None,
-        is_restart=None,
-        mask=None,
-        filename=None,
-        n_walkers=None,
-        log_like="off",
-    ):
+        n_parameters: int | None = None,
+        n_steps: int | None = None,
+        is_restart: bool | None = None,
+        mask: np.ndarray | None = None,
+        filename: str | None = None,
+        n_walkers: int | None = None,
+        log_like: str = "off",
+    ) -> None:
 
         # Initialize the parameters if undefined
         if n_parameters is None:
@@ -137,15 +140,15 @@ class BayesFilter(object):
         # Define initial points for the MCMC
         try:
             guess_data = runavefilter(noisy_data, 100)
-        except:
+        except Exception:
             guess_data = runavefilter(noisy_data, 10)
 
         args = np.int32(
             np.linspace(0, len(noisy_data) - 1, n_parameters, endpoint=True)
         )
 
-        # MCMC sampling
-        # number of walkers must be larger than twice the number of parameters (and often a power of 2)
+        # MCMC sampling number of walkers must be larger than twice the number of
+        # parameters (and often a power of 2)
         if n_walkers is None:
             n_walkers = int(2 ** np.ceil(np.log2(2 * n_parameters)))
 
@@ -168,8 +171,7 @@ class BayesFilter(object):
         self.omega = omega
         self.omega_fixed = omega_fixed
 
-        # Set up the backend
-        # Don't forget to clear it in case the file already exists
+        # Set up the backend Don't forget to clear it in case the file already exists
         backend = emcee.backends.HDFBackend(filename)
         if not is_restart:
             backend.reset(n_walkers, n_parameters)
@@ -200,8 +202,7 @@ class BayesFilter(object):
                 backend=backend,
             )
 
-        # Run MCMC
-        # We'll track how the average autocorrelation time estimate changes
+        # Run MCMC We'll track how the average autocorrelation time estimate changes
         index = 0
         autocorr = np.empty(n_steps)
 
@@ -277,9 +278,8 @@ class BayesFilter(object):
             if sampler.iteration % 250:
                 continue
 
-            # Compute the autocorrelation time so far
-            # Using tol=0 means that we'll always get an estimate even
-            # if it isn't trustworthy
+            # Compute the autocorrelation time so far Using tol=0 means that we'll
+            # always get an estimate even if it isn't trustworthy
             tau = sampler.get_autocorr_time(tol=0, discard=disc)
             autocorr[index] = np.mean(tau)
             index += 1
@@ -305,8 +305,8 @@ class BayesFilter(object):
                 break
             old_tau = tau
 
-        # Compute chains auto-correlation time to estimate convergence
-        # If AutocorrError, probably the chain is too short. You can still use ~2*max(tau) as burn_in
+        # Compute chains auto-correlation time to estimate convergence If AutocorrError,
+        # probably the chain is too short. You can still use ~2*max(tau) as burn_in
         good_idx = None
         try:
             tau = sampler.get_autocorr_time(discard=disc)
@@ -385,36 +385,34 @@ class BayesFilter(object):
         except AttributeError:
             pass
 
-    ################################################
-    # Helper functions
+    ################################################ Helper functions
 
-    # The log-likelihood function
-    # def log_likelihood_offdiag(self, w, omega, omega_fixed, data_, nu, ell):
-    #     spline = self.model(omega_fixed, w)
-    #     rho = np.clip(spline(omega), -0.99, 0.99)
+    # The log-likelihood function def log_likelihood_offdiag(self, w, omega,
+    # omega_fixed, data_, nu, ell): spline = self.model(omega_fixed, w) rho =
+    #     np.clip(spline(omega), -0.99, 0.99)
 
     #     one_frac_rho2 = 1/(1-rho**2)
 
     #     # Data is distributed according to a Variance-Gamma distribution with parameters:
     #     # mu = 0; alpha = 1/(1-rho**2); beta = rho/(1-rho**2); lambda = ell*nu/2
     #     # Its expectation value is ell*nu*rho
-    #     data = ell*data_
-    #     z = data - ell*nu*rho
+    #     data = ell*data_ z = data - ell*nu*rho
 
-    #     log_pdf = -np.log(sp.gamma(0.5*nu)) + 0.5*(nu-1)*np.log(np.abs(z)) - 0.5*np.log(2**(nu-1)*np.pi/one_frac_rho2) + rho*z*one_frac_rho2 +\
+    #     log_pdf = -np.log(sp.gamma(0.5*nu)) + 0.5*(nu-1)*np.log(np.abs(z)) -
+    #     0.5*np.log(2**(nu-1)*np.pi/one_frac_rho2) + rho*z*one_frac_rho2 +\
     #             np.log(sp.kv(0.5*(nu-1), np.abs(z)*one_frac_rho2))
     #     return np.sum(log_pdf)
 
     def run_mcmc_scratch(
         self,
-        n_parameters=None,
-        n_steps=None,
-        is_restart=None,
-        mask=None,
-        filename=None,
-        n_walkers=None,
-        log_like="off",
-    ):
+        n_parameters: int | None = None,
+        n_steps: int | None = None,
+        is_restart: bool | None = None,
+        mask: np.ndarray | None = None,
+        filename: str | None = None,
+        n_walkers: int | None = None,
+        log_like: str = "off",
+    ) -> None:
 
         # Initialize the parameters if undefined
         if n_parameters is None:
@@ -443,15 +441,15 @@ class BayesFilter(object):
         # Define initial points for the MCMC
         try:
             guess_data = runavefilter(noisy_data, 200)
-        except:
+        except Exception:
             guess_data = runavefilter(noisy_data, 100)
 
         args = np.int32(
             np.linspace(0, len(noisy_data) - 1, n_parameters, endpoint=True)
         )
 
-        # MCMC sampling
-        # number of walkers must be larger than twice the number of parameters (and often a power of 2)
+        # MCMC sampling number of walkers must be larger than twice the number of
+        # parameters (and often a power of 2)
         if n_walkers is None:
             n_walkers = int(2 ** np.ceil(np.log2(2 * n_parameters)))
 
@@ -483,8 +481,7 @@ class BayesFilter(object):
         self.omega = omega
         self.omega_fixed = omega_fixed
 
-        # Set up the backend
-        # Don't forget to clear it in case the file already exists
+        # Set up the backend Don't forget to clear it in case the file already exists
         backend = emcee.backends.HDFBackend(filename)
         if not is_restart:
             backend.reset(n_walkers, n_parameters)
@@ -516,8 +513,7 @@ class BayesFilter(object):
                 backend=backend,
             )
 
-        # Run MCMC
-        # We'll track how the average autocorrelation time estimate changes
+        # Run MCMC We'll track how the average autocorrelation time estimate changes
         index = 0
         autocorr = np.empty(n_steps)
 
@@ -581,12 +577,17 @@ class BayesFilter(object):
                 self.aic = (
                     2
                     * self.log_likelihood_diag(
-                        self.parameters_mean, omega, omega_fixed, noisy_data, ell
+                        self.parameters_mean,
+                        omega,
+                        omega_fixed,
+                        noisy_data,
+                        self.n_parameters,
+                        ell,
                     )
                     - 2 * self.n_parameters
                 )
-                burn_in = int(2 * np.max(tau))
-                thin = np.max([1, int(0.5 * np.min(tau))])
+            burn_in = int(2 * np.max(tau))
+            thin = np.max([1, int(0.5 * np.min(tau))])
             return
         else:
             coord = np.copy(p0)
@@ -604,8 +605,8 @@ class BayesFilter(object):
             if sampler.iteration % 1000 == 0:
                 print(tau)
 
-            # Using tol=0 means that we'll always get an estimate even
-            # if it isn't trustworthy
+            # Using tol=0 means that we'll always get an estimate even if it isn't
+            # trustworthy
             tau = sampler.get_autocorr_time(tol=0, discard=disc)
             autocorr[index] = np.mean(tau)
             index += 1
@@ -628,8 +629,8 @@ class BayesFilter(object):
                 break
             old_tau = tau
 
-        # Compute chains auto-correlation time to estimate convergence
-        # If AutocorrError, probably the chain is too short. You can still use ~2*max(tau) as burn_in
+        # Compute chains auto-correlation time to estimate convergence If AutocorrError,
+        # probably the chain is too short. You can still use ~2*max(tau) as burn_in
         good_idx = None
         try:
             print(disc, " discard")
@@ -648,14 +649,8 @@ class BayesFilter(object):
             log.write_log("Fixed MCMC autocorrelation time = {}".format(tau))
             burn_in = max(int(2 * np.max(tau)), disc)
             thin = np.max([1, int(1.5 * np.min(tau))])
-        # if self.burn_in is not None:
-        #     burn_in = self.burn_in
-        # else:
-        #     self.burn_in = burn_in
-        # if self.thin is not None:
-        #     thin = self.thin
-        # else:
-        #     self.thin = thin
+        # if self.burn_in is not None: burn_in = self.burn_in else: self.burn_in =
+        #     burn_in if self.thin is not None: thin = self.thin else: self.thin = thin
         log.write_log("MCMC burn in = {}; thin = {}".format(burn_in, thin))
 
         if good_idx is None:
@@ -713,14 +708,24 @@ class BayesFilter(object):
             self.aic = (
                 2
                 * self.log_likelihood_diag(
-                    self.parameters_mean, omega, omega_fixed, noisy_data, ell
+                    self.parameters_mean,
+                    omega,
+                    omega_fixed,
+                    noisy_data,
+                    self.n_parameters,
+                    ell,
                 )
                 - 2 * self.n_parameters
             )
             self.dic = (
                 -2
                 * self.log_likelihood_diag(
-                    self.parameters_mean, omega, omega_fixed, noisy_data, ell
+                    self.parameters_mean,
+                    omega,
+                    omega_fixed,
+                    noisy_data,
+                    self.n_parameters,
+                    ell,
                 )
                 + 4 * sampler.get_log_prob(discard=burn_in, flat=True, thin=thin).mean()
             )
@@ -729,27 +734,33 @@ class BayesFilter(object):
         with open("dic_{}".format(self.n_parameters), "w+") as g:
             g.write("{}\t{}\n".format(self.n_parameters, self.dic))
 
-    ################################################
-    # Helper functions
+    ################################################ Helper functions
 
-    # The log-likelihood function
-    # def log_likelihood_offdiag(self, w, omega, omega_fixed, data_, nu, ell):
-    #     spline = self.model(omega_fixed, w)
-    #     rho = np.clip(spline(omega), -0.99, 0.99)
+    # The log-likelihood function def log_likelihood_offdiag(self, w, omega,
+    # omega_fixed, data_, nu, ell): spline = self.model(omega_fixed, w) rho =
+    #     np.clip(spline(omega), -0.99, 0.99)
 
     #     one_frac_rho2 = 1/(1-rho**2)
 
     #     # Data is distributed according to a Variance-Gamma distribution with parameters:
     #     # mu = 0; alpha = 1/(1-rho**2); beta = rho/(1-rho**2); lambda = ell*nu/2
     #     # Its expectation value is ell*nu*rho
-    #     data = ell*data_
-    #     z = data - ell*nu*rho
+    #     data = ell*data_ z = data - ell*nu*rho
 
-    #     log_pdf = -np.log(sp.gamma(0.5*nu)) + 0.5*(nu-1)*np.log(np.abs(z)) - 0.5*np.log(2**(nu-1)*np.pi/one_frac_rho2) + rho*z*one_frac_rho2 +\
+    #     log_pdf = -np.log(sp.gamma(0.5*nu)) + 0.5*(nu-1)*np.log(np.abs(z)) -
+    #     0.5*np.log(2**(nu-1)*np.pi/one_frac_rho2) + rho*z*one_frac_rho2 +\
     #             np.log(sp.kv(0.5*(nu-1), np.abs(z)*one_frac_rho2))
     #     return np.sum(log_pdf)
 
-    def log_likelihood_wishart(self, w, omega, omega_fixed, data_, nu, ell):
+    def log_likelihood_wishart(
+        self,
+        w: np.ndarray,
+        omega: np.ndarray,
+        omega_fixed: np.ndarray,
+        data_: np.ndarray,
+        nu: int,
+        ell: int,
+    ) -> np.floating:
         """
         Logarithm of the Wishart probability density function.
         """
@@ -758,7 +769,7 @@ class BayesFilter(object):
         spline = self.model(omega_fixed, w)
         V = spline(omega)
         # TODO: convert the notation from wikipedia to Baroni
-        X = data_ * ell * nu
+        X: np.ndarray = data_ * ell * nu
         n = ell
         p = 2
         a, b, d = X[..., 0, 0], X[..., 0, 1], X[..., 1, 1]
@@ -778,7 +789,15 @@ class BayesFilter(object):
 
         return np.sum(log_pdf)
 
-    def log_likelihood_offdiag(self, w, omega, omega_fixed, data_, nu, ell):
+    def log_likelihood_offdiag(
+        self,
+        w: np.ndarray,
+        omega: np.ndarray,
+        omega_fixed: np.ndarray,
+        data_: np.ndarray,
+        nu: int,
+        ell: int,
+    ) -> np.floating:
         """
         Logarithm of the Variance-Gamma probability density function.
         """
@@ -790,10 +809,10 @@ class BayesFilter(object):
         _gamma2 = _alpha**2 - _beta**2
         _lambda_minus_half = _lambda - 0.5
 
-        # Data is distributed according to a Variance-Gamma distribution with parameters (notation as in Wikipedia):
-        # mu = 0; alpha = 1/(1-rho**2); beta = rho/(1-rho**2); lambda = ell*nu/2
-        # Its expectation value is ell*nu*rho
-        z = data_ * ell * nu
+        # Data is distributed according to a Variance-Gamma distribution with parameters
+        # (notation as in Wikipedia): mu = 0; alpha = 1/(1-rho**2); beta =
+        # rho/(1-rho**2); lambda = ell*nu/2 Its expectation value is ell*nu*rho
+        z: np.ndarray = data_ * ell * nu
         absz = np.abs(z)
         # z = data
         log_pdf = (
@@ -809,7 +828,15 @@ class BayesFilter(object):
         res = np.sum(log_pdf)
         return res
 
-    def log_likelihood_diag(self, w, omega, omega_fixed, data, M, ell):
+    def log_likelihood_diag(
+        self,
+        w: np.ndarray,
+        omega: np.ndarray,
+        omega_fixed: np.ndarray,
+        data: np.ndarray,
+        M: int,
+        ell: int,
+    ) -> np.floating:
         """
         Negative of the logarithm of the Chi-squared probability density function.
 
@@ -833,7 +860,15 @@ class BayesFilter(object):
         # Return the negative log-likelihood
         return -np.sum(log_pdf)
 
-    def log_likelihood_normal(self, w, omega, omega_fixed, data_, nu, ell):
+    def log_likelihood_normal(
+        self,
+        w: np.ndarray,
+        omega: np.ndarray,
+        omega_fixed: np.ndarray,
+        data_: np.ndarray,
+        nu: int,
+        ell: int,
+    ) -> np.floating:
         spline = self.model(omega_fixed, w)
         rho = np.clip(spline(omega), -0.98, 0.98)
 
@@ -841,7 +876,7 @@ class BayesFilter(object):
         return np.sum(log_pdf)
 
     # The log-prior function
-    def log_prior_offdiag(self, w):
+    def log_prior_offdiag(self, w: np.ndarray) -> float:
         # Uniform prior
         if np.all((w >= -1) & (w <= 1)):
             return 1
@@ -849,7 +884,7 @@ class BayesFilter(object):
             return -np.inf
 
     # The log-prior function
-    def log_prior_diag(self, w):
+    def log_prior_diag(self, w: np.ndarray) -> float:
         # Uniform prior
         if np.all((w >= 1e-6) & (w <= 1e6)):
             return 1
@@ -857,42 +892,70 @@ class BayesFilter(object):
             return -np.inf
 
     # The log-posterior function
-    def log_posterior_offdiag(self, w, omega, omega_fixed, data, nu=6, ell=3):
+    def log_posterior_offdiag(
+        self,
+        w: np.ndarray,
+        omega: np.ndarray,
+        omega_fixed: np.ndarray,
+        data: np.ndarray,
+        nu: int = 6,
+        ell: int = 3,
+    ) -> np.floating:
         return self.log_prior_offdiag(w) + self.log_likelihood_offdiag(
             w, omega, omega_fixed, data, nu, ell
         )
 
     # The log-posterior function
-    def log_posterior_diag(self, w, omega, omega_fixed, data, nu=2, ell=3):
+    def log_posterior_diag(
+        self,
+        w: np.ndarray,
+        omega: np.ndarray,
+        omega_fixed: np.ndarray,
+        data: np.ndarray,
+        nu: int = 2,
+        ell: int = 3,
+    ) -> np.floating:
         return self.log_prior_diag(w) + self.log_likelihood_diag(
             w, omega, omega_fixed, data, nu, ell
         )
 
     # The log-posterior function
-    def log_posterior_normal(self, w, omega, omega_fixed, data, nu=6, ell=3):
+    def log_posterior_normal(
+        self,
+        w: np.ndarray,
+        omega: np.ndarray,
+        omega_fixed: np.ndarray,
+        data: np.ndarray,
+        nu: int = 6,
+        ell: int = 3,
+    ) -> np.floating:
         return self.log_prior_offdiag(w) + self.log_likelihood_normal(
             w, omega, omega_fixed, data, nu, ell
         )
 
     def initialize_cepstral_distribution(
-        self, ck_theory_var=None, psd_theory_mean=None
-    ):
+        self,
+        ck_theory_var: np.ndarray | None = None,
+        psd_theory_mean: np.ndarray | None = None,
+    ) -> None:
         """
-        Initialize the theoretical distribution of the cepstral coefficients.
-        The samplelogpsd must has been already set.
+        Initialize the theoretical distribution of the cepstral coefficients. The
+        samplelogpsd must has been already set.
 
         Input parameters:
-            ck_theory_var   = the theoretical variance of cepstral coefficients, \\sigma*^2(P*,N)
-            psd_theory_mean = the theoretical bias of log-PSD, \\lambda_l
+            ck_theory_var   = the theoretical variance of cepstral coefficients,
+            \\sigma*^2(P*,N) psd_theory_mean = the theoretical bias of log-PSD,
+            \\lambda_l
 
-        If ck_theory_var and/or psd_theory_mean are not specified, the default theoretical values will be used.
+        If ck_theory_var and/or psd_theory_mean are not specified, the default
+        theoretical values will be used.
         """
         NF = self.samplelogpsd.size
         N = 2 * (NF - 1)
 
         if psd_theory_mean is None:
-            # by default the THEORETICAL means are the one component ones:
-            # ck THEORY mean:
+            # by default the THEORETICAL means are the one component ones: ck THEORY
+            # mean:
             #    - EULER_GAMMA - log(2)   for k = {0, N/2}
             #    - EULER_GAMMA            otherwise
             self.logpsd_THEORY_mean = -EULER_GAMMA * np.ones(NF)
@@ -903,10 +966,8 @@ class BayesFilter(object):
 
         # set theoretical errors
         if ck_theory_var is None:
-            # by default the THEORETICAL variances are the one component ones:
-            # ck THEORY variances:
-            #    (pi^2)/3/N   for k = {0, N/2}
-            #    (pi^2)/6/N   otherwise
+            # by default the THEORETICAL variances are the one component ones: ck THEORY
+            # variances: (pi^2)/3/N   for k = {0, N/2} (pi^2)/6/N   otherwise
             self.logpsdK_THEORY_var = (
                 1.0
                 / N
@@ -916,8 +977,8 @@ class BayesFilter(object):
             )
             self.logpsdK_THEORY_std = np.sqrt(self.logpsdK_THEORY_var)
             # logtau THEORY variances:  (we assume to be summing ck up to K, included)
-            #    (pi^2)/3/N*(2*K+1)   for K = {0, N/2-1}
-            #    (pi^2)/3             for K = N/2
+            #    (pi^2)/3/N*(2*K+1)   for K = {0, N/2-1} (pi^2)/3             for K =
+            #    N/2
             self.logtau_THEORY_var = (
                 1.0
                 / N
@@ -940,16 +1001,22 @@ class BayesFilter(object):
             )
             self.logtau_THEORY_std = np.sqrt(self.logtau_THEORY_var)
 
-    def scan_filter_tau(self, cutoffK=None, aic_Kmin_corrfactor=1.0, correct_mean=True):
+    def scan_filter_tau(
+        self,
+        cutoffK: int | None = None,
+        aic_Kmin_corrfactor: float = 1.0,
+        correct_mean: bool = True,
+    ) -> None:
         """
-        Computes tau as a function of the cutoffK (= P*-1).
-        Also computes psd and logpsd for the given cutoffK.
-        If cutoffK is None, aic_Kmin * aic_Kmin_corrfactor will be used.
+        Computes tau as a function of the cutoffK (= P*-1). Also computes psd and logpsd
+        for the given cutoffK. If cutoffK is None, aic_Kmin * aic_Kmin_corrfactor will
+        be used.
 
         Input parameters:
-            cutoffK = (P*-1) = cutoff used to compute logtau and logpsd (by default = aic_Kmin * aic_Kmin_corrfactor)
-            aic_Kmin_corrfactor = aic_Kmin cutoff correction factor (default: 1.0)
-            correct_mean = fix the bias introduced by the log-distribution (default: True)
+            cutoffK = (P*-1) = cutoff used to compute logtau and logpsd (by default =
+            aic_Kmin * aic_Kmin_corrfactor) aic_Kmin_corrfactor = aic_Kmin cutoff
+            correction factor (default: 1.0) correct_mean = fix the bias introduced by
+            the log-distribution (default: True)
 
         self.tau_cutoffK will contain the value of tau for the specified cutoff cutoffK
 
@@ -975,8 +1042,9 @@ class BayesFilter(object):
             log.write_log(
                 "! Warning:  cutoffK ({:}) is out of range.".format(self.cutoffK)
             )
-            # log.write_log('! Warning:  cutoffK ({:}) is out of range. The maximum frequency ({:}) will be used.'.format(self.cutoffK, self.samplelogpsd.size - 1))
-            # self.cutoffK = self.samplelogpsd.size - 1
+            # log.write_log('! Warning:  cutoffK ({:}) is out of range. The maximum
+            # frequency ({:}) will be used.'.format(self.cutoffK, self.samplelogpsd.size
+            # - 1)) self.cutoffK = self.samplelogpsd.size - 1
 
         # COS-filter analysis with frequency cutoff K
         self.logtau = dct_filter_tau(self.samplelogpsd)
@@ -988,26 +1056,28 @@ class BayesFilter(object):
         self.tau_THEORY_std = self.tau * self.logtau_THEORY_std
 
         if self.cutoffK < self.samplelogpsd.size:
-            self.logtau_cutoffK = self.logtau[self.cutoffK]
+            self.logtau_cutoffK: float = float(self.logtau[self.cutoffK])
             self.logtau_var_cutoffK = self.logtau_THEORY_var[self.cutoffK]
             self.logtau_std_cutoffK = self.logtau_THEORY_std[self.cutoffK]
             self.tau_cutoffK = self.tau[self.cutoffK]
             self.tau_std_cutoffK = self.tau_THEORY_std[self.cutoffK]
             self.tau_var_cutoffK = self.tau_std_cutoffK**2
         else:
-            self.logtau_cutoffK = np.NaN
-            self.logtau_var_cutoffK = np.NaN
-            self.logtau_std_cutoffK = np.NaN
-            self.tau_cutoffK = np.NaN
-            self.tau_var_cutoffK = np.NaN
-            self.tau_std_cutoffK = np.NaN
+            self.logtau_cutoffK = np.nan
+            self.logtau_var_cutoffK = np.nan
+            self.logtau_std_cutoffK = np.nan
+            self.tau_cutoffK = np.nan
+            self.tau_var_cutoffK = np.nan
+            self.tau_std_cutoffK = np.nan
 
         if correct_mean:
             self.logpsd = self.logpsd + self.logpsd_THEORY_mean
             self.logtau = self.logtau + self.logpsd_THEORY_mean[0]
             self.logtau_cutoffK = self.logtau_cutoffK + self.logpsd_THEORY_mean[0]
 
-    def scan_filter_psd(self, cutoffK_LIST, correct_mean=True):
+    def scan_filter_psd(
+        self, cutoffK_LIST: np.ndarray, correct_mean: bool = True
+    ) -> None:
         """Computes the psd and tau as a function of the cutoff K.
         Repeats the procedure for all the cutoffs in cutoffK_LIST."""
         self.cutoffK_LIST = cutoffK_LIST

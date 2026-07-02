@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """Current and units registry.
 
-This module handles the current types and units supported by the library.
-The currently supported entries can be inspected with
-:py:func:`build_currents_units_table`.
+This module handles the current types and units supported by the library. The currently
+supported entries can be inspected with :py:func:`build_currents_units_table`.
 
 To add a new current type and/or unit:
 
@@ -24,14 +23,13 @@ To add a new current type and/or unit:
 
    .. code-block:: python
 
-      CurrentType, builder = self._get_builder()
-      new_ts = CurrentType(**builder)
+      CurrentType, builder = self._get_builder() new_ts = CurrentType(**builder)
 
 4. Define unit conversion functions in :py:mod:`.current.units`:
 
    - Add a file named ``_current_type.py``.
-   - Add functions named ``scale_kappa_*``; the suffix becomes the unit name in
-     user interfaces.
+   - Add functions named ``scale_kappa_*``; the suffix becomes the unit name in user
+     interfaces.
 """
 
 from .current import Current
@@ -55,11 +53,11 @@ import inspect
 _all = dir()
 
 
-def _get_currents_with_units():
+def _get_currents_with_units() -> tuple[dict, list, list]:
     """
-    Inspect all the classes accessible from this module, and detect the ones that contains the attribute `_current_type`.
-    Then call the `get_units` method to inspect the units implemented for each discovered class.
-    :return: ( {'_current_type': (CurrentClass, ['unit_list'], ['parameter_list'])} )
+    Inspect all the classes accessible from this module, and detect the ones that
+    contains the attribute `_current_type`. Then call the `get_units` method to inspect
+    the units implemented for each discovered class.
     """
     currents_with_units = {}
     all_units = []
@@ -83,7 +81,7 @@ def _get_currents_with_units():
     return currents_with_units, all_units, all_parameters
 
 
-def _list_of_currents_and_units(verbose=False):
+def _list_of_currents_and_units(verbose: bool = False) -> str:
     s = ""
     for k, v_ in all_currents.items():
         v = v_[0]
@@ -95,12 +93,14 @@ def _list_of_currents_and_units(verbose=False):
     return s
 
 
-# list of currents classes, units implemented and parameters that are found dynamically when the module is imported
+# list of currents classes, units implemented and parameters that are found dynamically
+# when the module is imported
 all_currents, all_units, all_parameters = _get_currents_with_units()
 
 
-def build_currents_units_table(col=9):
-    """Print a table with the Current classes and the units implemented for each class"""
+def build_currents_units_table(col: int = 9) -> str:
+    """Print a table with the Current classes and the units implemented for each
+    class"""
     table = ""
     table += " " * col
     for u in all_units:

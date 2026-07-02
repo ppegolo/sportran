@@ -7,7 +7,7 @@ from .logger import PrintMethod
 
 try:
     log = PrintMethod()
-except:
+except Exception:
     raise RuntimeError("PrintMethod not defined.")
 
 __all__ = ["log"]

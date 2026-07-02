@@ -1,14 +1,13 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python -*- coding: utf-8 -*-
 
-################################################################################
-###
+################################################################################ ##
 ###   ReadLAMMPSLogFile
+### ###############################################################################
 ###
-################################################################################
-###
-###  A package that reads a LAMMPS Log file and organizes it into a dictionary according to the column headers.
-###  LAMMPS-style vector variables header are grouped together (only if group_vector = True).
+###  A package that reads a LAMMPS Log file and organizes it into a dictionary according
+###  to the column headers.
+###  LAMMPS-style vector variables header are grouped together (only if group_vector =
+# True).
 ###  If the name starts with "c_" or "v_", this is stripped away.
 ###    e.g.    c_flux[0] c_flux[1] c_flux[2]  -->  placed in 'flux0' key
 ###
@@ -20,8 +19,7 @@
 ###  Lines are read SEQUENTIALLY with the method read_datalines.
 ###  If a start_step is not specified the file is read from the current position.
 ###  This allows one to read the file in blocks.
-###
-################################################################################
+### ###############################################################################
 ###  Example of LAMMPS Log file:
 ###
 ###  fix NVE all nve
@@ -36,8 +34,7 @@
 ###  2 238.37359 -1087.9214 -1874.56 -138.58616 115.84038 -5.7728078 -58.471318 -74.51758
 ###  ...
 ###  Loop time of 110.158 on 20 procs for 400000 steps with 1728 atoms
-###
-################################################################################
+### ###############################################################################
 ###  Example script:
 ###     data = LAMMPSLogFile('lammps.log', run_keyword='PRODUCTION RUN')
 ###     data.read_datalines(NSTEPS=100, start_step=0, select_ckeys=['Step', 'Temp', 'flux'])
@@ -47,15 +44,16 @@
 ###     data.save_numpy_dict('flux.npy', ['flux'], 'lammps.data')
 ################################################################################
 
-from io import BytesIO, StringIO
+from io import BytesIO, StringIO, TextIOBase
 from time import time
+from typing import Any
 
 import numpy as np
 
 from sportran.utils import log
 
 
-def is_string(string):
+def is_string(string: str) -> bool:
     try:
         float(string)
     except ValueError:
@@ -63,57 +61,57 @@ def is_string(string):
     return False
 
 
-def is_vector_variable(string):
+def is_vector_variable(string: str) -> int:
     bracket = string.rfind("[")
     if bracket == -1:
         bracket = 0
     return bracket
 
 
-def _get_file_length(f):
+def _get_file_length(f) -> int:
     i = -1
-    for i, l in enumerate(f, 1):
+    for i, line in enumerate(f, 1):
         pass
     return i
 
 
-def file_length(file):
+def file_length(file: str | bytes) -> int:
     i = -1
     if isinstance(file, bytes):
-        f = BytesIO(file)
-        i = _get_file_length(f)
-        f.close()
+        buf = BytesIO(file)
+        i = _get_file_length(buf)
+        buf.close()
     elif isinstance(file, str):
-        with open(file) as f:
-            i = _get_file_length(f)
+        with open(file) as fh:
+            i = _get_file_length(fh)
     else:
-        raise ValueError("Unsupported data type for file: {}".format(type(file)))
+        raise ValueError("Unsupported data type for file: {!r}".format(type(file)))
 
     return i
 
 
-def _get_data_length(f):
+def _get_data_length(f) -> int:
     i = 0
     while is_string(f.readline().split()[0]):  # skip text lines
         pass
-    for i, l in enumerate(f, 2):
+    for i, line in enumerate(f, 2):
         pass
 
     return i
 
 
-def data_length(file):
+def data_length(file: str | bytes) -> int:
     i = 0
 
     if isinstance(file, bytes):
-        f = BytesIO(file)
-        i = _get_data_length(f)
-        f.close()
+        buf = BytesIO(file)
+        i = _get_data_length(buf)
+        buf.close()
     elif isinstance(file, str):
-        with open(file) as f:
-            i = _get_data_length(f)
+        with open(file) as fh:
+            i = _get_data_length(fh)
     else:
-        raise ValueError("Unsupported data type for file: {}".format(type(file)))
+        raise ValueError("Unsupported data type for file: {!r}".format(type(file)))
 
     return i
 
@@ -122,8 +120,8 @@ class LAMMPSLogFile(object):
     """
     LAMMPS log reader organized by column headers.
 
-    LAMMPS-style vector variable headers can be grouped. Prefixes ``c_`` and
-    ``v_`` are stripped when present.
+    LAMMPS-style vector variable headers can be grouped. Prefixes ``c_`` and ``v_`` are
+    stripped when present.
 
     The output block is selected by ``run_keyword`` and reading stops when
     ``endrun_keyword`` is found (default: ``'Loop time'``).
@@ -131,18 +129,23 @@ class LAMMPSLogFile(object):
     Example
     -------
     ``jfile = LAMMPSLogFile(data_file, run_keyword='PRODUCTION RUN')``
-    ``jfile.read_datalines(NSTEPS=100, start_step=0, select_ckeys=['Step', 'Temp', 'flux'])``
-    ``jfile.save_numpy_dict('flux.npy', ['flux'], 'lammps.data')``
+    ``jfile.read_datalines(NSTEPS=100, start_step=0, select_ckeys=['Step', 'Temp',
+    'flux'])`` ``jfile.save_numpy_dict('flux.npy', ['flux'], 'lammps.data')``
     """
 
-    def __init__(self, data_file, run_keyword=None, select_ckeys=None, **kwargs):
+    def __init__(
+        self,
+        data_file: str | bytes,
+        run_keyword: str | None = None,
+        select_ckeys: list[str] | None = None,
+        **kwargs: Any,
+    ) -> None:
         """
         Build a ``LAMMPSLogFile`` reader.
 
         Keyword arguments:
-            ``endrun_keyword`` [default: ``'Loop time'``]
-            ``group_vectors`` [default: ``True``]
-            ``GUI`` [default: ``False``]
+            ``endrun_keyword`` [default: ``'Loop time'``] ``group_vectors`` [default:
+            ``True``] ``GUI`` [default: ``False``]
         """
 
         if not isinstance(data_file, (bytes, str)):
@@ -159,21 +162,20 @@ class LAMMPSLogFile(object):
         if self.run_keyword is None:
             raise ValueError('Please specify run_keyword (e.g. "DUMP_RUN").')
         if self._GUI:
+            global FloatProgress, display
             from IPython.display import display
             from ipywidgets import FloatProgress
-
-            global FloatProgress, display
 
         self._open_file()
         self.MAX_NSTEPS = file_length(self.data_file)
         self._read_ckeys(self.run_keyword, group_vectors)
-        self.ckey = None
+        self.ckey: dict[str, np.ndarray] = {}
         return
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         msg = (
             "TableFile:\n"
-            + "  data_file:      {}\n".format(self.data_file)
+            + "  data_file:      {!r}\n".format(self.data_file)
             + "  all_ckeys:     {}\n".format(self.all_ckeys)
             + "  select_ckeys:  {}\n".format(self.select_ckeys)
             + "  used ckey:     {}\n".format(self.ckey)
@@ -182,19 +184,21 @@ class LAMMPSLogFile(object):
         )
         return msg
 
-    def _open_file(self):
-        """Open the file."""
+    def _open_file(self) -> None:
         if isinstance(self.data_file, bytes):
-            self.file = StringIO(BytesIO(self.data_file).read().decode("utf-8"))
+            self.file: TextIOBase = StringIO(
+                BytesIO(self.data_file).read().decode("utf-8")
+            )
         elif isinstance(self.data_file, str):
             try:
                 self.file = open(self.data_file, "r")
-            except:
+            except Exception:
                 raise ValueError("File does not exist.")
         return
 
-    def _read_ckeys(self, run_keyword, group_vectors=True):
-        """Seek the line containing 'run_keyword'. Read the column keys. If group_vectors=True the vector ckeys are grouped togheter."""
+    def _read_ckeys(self, run_keyword: str, group_vectors: bool = True) -> None:
+        """Seek the line containing 'run_keyword'. Read the column keys. If
+        group_vectors=True the vector ckeys are grouped togheter."""
         self.all_ckeys = {}
         nlines = 0
         while True:
@@ -258,7 +262,9 @@ class LAMMPSLogFile(object):
         log.write_log(" #####################################")
         return
 
-    def _set_ckey(self, select_ckeys=None, max_vector_dim=None):
+    def _set_ckey(
+        self, select_ckeys: list[str] | None = None, max_vector_dim: int | None = None
+    ) -> None:
         """Set the ckeys that have been selected, checking the available ones."""
         if select_ckeys is not None:
             self.select_ckeys = select_ckeys
@@ -280,9 +286,9 @@ class LAMMPSLogFile(object):
             log.write_log("  ckey = ", sorted(self.ckey.items(), key=lambda kv: kv[0]))
         return
 
-    def _initialize_dic(self, NSTEPS=None):
+    def _initialize_dic(self, NSTEPS: int | None = None) -> None:
         """Initialize the data dictionary once the ckeys have been set."""
-        if self.ckey is None:
+        if not self.ckey:
             raise ValueError("ckey not set.")
         if NSTEPS is None:
             NSTEPS = 1
@@ -295,12 +301,11 @@ class LAMMPSLogFile(object):
             self.data[key] = np.zeros((NSTEPS, len(idx)))
         return
 
-    def gotostep(self, start_step):
+    def gotostep(self, start_step: int) -> None:
         """
         Go to the start_step-th line in the time series (assumes step=1).
           start_step = -1  -->  ignore, continue from current step
-                        0  -->  go to start step
-                        N  -->  go to N-th step
+                        0  -->  go to start step N  -->  go to N-th step
         """
         if start_step >= 0:
             self.file.seek(self._start_byte)
@@ -310,12 +315,12 @@ class LAMMPSLogFile(object):
 
     def read_datalines(
         self,
-        NSTEPS=0,
-        start_step=-1,
-        select_ckeys=None,
-        max_vector_dim=None,
-        even_NSTEPS=True,
-    ):
+        NSTEPS: int = 0,
+        start_step: int = -1,
+        select_ckeys: list[str] | None = None,
+        max_vector_dim: int | None = None,
+        even_NSTEPS: bool = True,
+    ) -> dict[str, np.ndarray] | None:
         """
         Read selected keys from the log data block.
 
@@ -338,8 +343,8 @@ class LAMMPSLogFile(object):
             Dictionary with selected-column values.
         """
         if self._GUI:
-            progbar = FloatProgress(min=0, max=100)
-            display(progbar)
+            progbar = FloatProgress(min=0, max=100)  # type: ignore[name-defined]
+            display(progbar)  # type: ignore[name-defined]
         start_time = time()
         if NSTEPS == 0:
             NSTEPS = self.MAX_NSTEPS
@@ -384,7 +389,8 @@ class LAMMPSLogFile(object):
         if step + 1 < NSTEPS:
             if step == 0:
                 log.write_log("WARNING:  no step read.")
-                return
+                self.NSTEPS = 0
+                return None
             else:
                 if NSTEPS != self.MAX_NSTEPS:  # if NSTEPS was specified
                     log.write_log("Warning:  less steps read.")
@@ -401,28 +407,35 @@ class LAMMPSLogFile(object):
         log.write_log("DONE.  Elapsed time: ", time() - start_time, "seconds")
         return self.data
 
-    def save_numpy_dict(self, out_file, select_ckeys=None, lammps_data_file=None):
+    def save_numpy_dict(
+        self,
+        out_file: str,
+        select_ckeys: list[str] | None = None,
+        lammps_data_file: str | None = None,
+    ) -> None:
         """Export LAMMPSLogFile to Numpy binary format."""
         save_numpy_dict(self, out_file, select_ckeys, lammps_data_file)
 
 
 def save_numpy_dict(
-    lammpslogfile_obj, out_file, select_ckeys=None, lammps_data_file=None
-):
+    lammpslogfile_obj: LAMMPSLogFile,
+    out_file: str,
+    select_ckeys: list[str] | None = None,
+    lammps_data_file: str | None = None,
+) -> None:
     """
-     Takes a LAMMPSLogFile object, a LAMMPS structure data file (optional), takes
-     the desired columns and save data into a Numpyz file.
+     Takes a LAMMPSLogFile object, a LAMMPS structure data file (optional), takes the
+     desired columns and save data into a Numpyz file.
 
     Parameters
     ----------
-    lammpslogfile_obj  = LAMMPSLogFile object
-    out_file           = numpy output file to be saved
-    select_ckeys       = name of variables to be saved
-    lammps_data_file   = LAMMPS data file containing the structure information
+    lammpslogfile_obj  = LAMMPSLogFile object out_file           = numpy output file to
+    be saved select_ckeys       = name of variables to be saved lammps_data_file   =
+    LAMMPS data file containing the structure information
                          (generated using the `write_data` command)
 
-     # example to save data into a Numpyz file:
-     save_numpy_dict(lammpslogfile_object, 'flux.npy', ['flux'], 'lammps.data')
+     # example to save data into a Numpyz file: save_numpy_dict(lammpslogfile_object,
+     'flux.npy', ['flux'], 'lammps.data')
     """
 
     from sportran.i_o.read_lammps_datafile import get_box
@@ -430,14 +443,14 @@ def save_numpy_dict(
     if not isinstance(lammpslogfile_obj, LAMMPSLogFile):
         raise ValueError("lammpslogfile_obj is not a LAMMPSLogFile object.")
 
-    dic = {}
+    dic: dict[str, Any] = {}
     if "Temp" not in lammpslogfile_obj.ckey:
         raise RuntimeError("Temp not found.")
     dic["Temp_ave"] = np.mean(lammpslogfile_obj.data["Temp"])
     dic["Temp_std"] = np.std(lammpslogfile_obj.data["Temp"])
 
     if select_ckeys is None:
-        select_ckeys = lammpslogfile_obj.ckey
+        select_ckeys = list(lammpslogfile_obj.ckey)
     for key in select_ckeys:
         if key in lammpslogfile_obj.ckey:
             dic[key] = lammpslogfile_obj.data[key]
@@ -464,12 +477,12 @@ def save_numpy_dict(
 
 
 ################################################################################
-def main():
+def main() -> int:
     """
     Extract selected columns from a LAMMPS log into a NumPy file.
 
-    Example:
-    ``python read_lammps_log.py log.lammps out.npz -k flux1 Press -d "PRODUCTION RUN"``
+    Example: ``python read_lammps_log.py log.lammps out.npz -k flux1 Press -d
+    "PRODUCTION RUN"``
     """
 
     import argparse
