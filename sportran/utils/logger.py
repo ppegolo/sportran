@@ -59,11 +59,12 @@ class PrintMethod:
 
     @classmethod
     def append_method(cls, method: str) -> None:
-        """append the method to the list.
-        :param method: the method to be added to the method list, can be any of 'bash',
-            'file' or 'other'
+        """Append the method to the list.
+
+        :param method: The method to be added to the method list. Can be any of
+            'bash', 'file', or 'other'. If 'file', remember to call
+            :func:`open_file` somewhere.
         :type method: str
-        if 'file' remember to call :func:`open_file` somewhere
         """
         cls._METHOD.append(method)
 
