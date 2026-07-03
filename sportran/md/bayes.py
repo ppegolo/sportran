@@ -4,7 +4,6 @@
 
 from typing import Callable
 
-import emcee
 import numpy as np
 import scipy.special as sp
 
@@ -17,6 +16,18 @@ from .cepstral import (
     multicomp_cepstral_parameters,
 )
 from .tools.filter import runavefilter
+
+
+def _get_emcee():
+    try:
+        import emcee
+    except ImportError:
+        raise ImportError(
+            "Bayesian analysis (BayesFilter) requires the 'emcee' package. "
+            "Install it with: pip install sportran[bayes]"
+        ) from None
+    return emcee
+
 
 __all__ = ["BayesFilter"]
 EULER_GAMMA = (
@@ -90,6 +101,8 @@ class BayesFilter(object):
         n_walkers: int | None = None,
         log_like: str = "off",
     ) -> None:
+
+        emcee = _get_emcee()
 
         # Initialize the parameters if undefined
         if n_parameters is None:
@@ -413,6 +426,8 @@ class BayesFilter(object):
         n_walkers: int | None = None,
         log_like: str = "off",
     ) -> None:
+
+        emcee = _get_emcee()
 
         # Initialize the parameters if undefined
         if n_parameters is None:
