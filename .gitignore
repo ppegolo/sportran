@@ -115,3 +115,4 @@ docs/source/_autosummary/
 # vi swap files
 *.swp
 .DS_Store
+tests/new_data.npy
