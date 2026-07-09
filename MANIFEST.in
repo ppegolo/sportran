@@ -1,12 +1,12 @@
 recursive-include examples *
 include LICENSE.txt
 include README.md
-exclude sportran/utils/obsolete
+exclude src/sportran/utils/obsolete
 include README_GUI.md
-include sportran_gui/assets/icon.gif
-include sportran_gui/assets/languages.json
-include sportran/plotter/styles/api_style.mplstyle
-include sportran/plotter/styles/cli_style.mplstyle
+include src/sportran_gui/assets/icon.gif
+include src/sportran_gui/assets/languages.json
+include src/sportran/plotter/styles/api_style.mplstyle
+include src/sportran/plotter/styles/cli_style.mplstyle
 
 # added by check-manifest
 include *.md
@@ -18,15 +18,15 @@ recursive-include docs *.md
 recursive-include docs *.py
 recursive-include docs *.rst
 recursive-include docs Makefile
-recursive-include sportran *.md
-recursive-include sportran *.sh
-recursive-include sportran_gui *.ico
-recursive-include sportran_gui *.ini
-recursive-include sportran_gui *.md
+recursive-include src/sportran *.md
+recursive-include src/sportran *.sh
+recursive-include src/sportran_gui *.ico
+recursive-include src/sportran_gui *.ini
+recursive-include src/sportran_gui *.md
 recursive-include tests *.csv
 recursive-include tests *.md
 recursive-include tests *.py
 recursive-include tests *.txt
 recursive-include tests *.yml
 recursive-include tests/data *
-include sportran_gui/utils/tk_html_widgets/LICENSE
+include src/sportran_gui/utils/tk_html_widgets/LICENSE

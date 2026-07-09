@@ -95,7 +95,7 @@ type = [
 include-package-data = true
 
 [tool.setuptools.packages.find]
-exclude = ["examples*", "tests*", "docs*"]
+where = ["src"]
 
 [tool.setuptools.package-data]
 sportran = ["plotter/styles/*.mplstyle"]
@@ -112,7 +112,7 @@ ignore = ["E402", "E501", "F401", "F403", "F405", "F821"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/{docs,examples,tests}/*" = ["D"]
-"sportran/utils/obsolete/*" = ["E711", "E722", "F811"]
+"src/sportran/utils/obsolete/*" = ["E711", "E722", "F811"]
 
 [tool.mypy]
 python_version = "3.10"
@@ -121,7 +121,7 @@ ignore_missing_imports = true
 warn_unused_ignores = true
 show_error_codes = true
 files = [
-    "sportran/",
+    "src/sportran/",
 ]
 
 [tool.pydoclint]

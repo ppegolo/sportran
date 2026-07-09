@@ -16,7 +16,7 @@ def _strip_font_cache(msg: str) -> str:
 def run_cli(testdir, filepath_tests):
 
     def do_run(*args):
-        args = [filepath_tests + '/../sportran/analysis.py'] + list(args)
+        args = [filepath_tests + '/../src/sportran/analysis.py'] + list(args)
         return testdir.run(*args)
 
     return do_run
