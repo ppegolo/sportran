@@ -40,6 +40,7 @@ from .stress import *
 from .thermoelectric import *
 
 __all__ = [
+    "Current",
     "GenericCurrent",
     "HeatCurrent",
     "ElectricCurrent",
