@@ -1,0 +1,372 @@
+# -*- coding: utf-8 -*-
+
+################################################################################ ##
+###   ReadTABLEfile
+### ############################################################################### ##
+###  a package that reads a table-style file and organizes it into a dictionary according to the column headers.
+###  LAMMPS-style vector variables header are grouped together (only if group_vector = True).
+###  If the name starts with "c_" or "v_", this is stripped away.
+###    e.g.    c_flux[0] c_flux[1] c_flux[2]  -->  placed in 'flux' key
+###  Comments lines are ignored.
+###
+###  Lines are read SEQUENTIALLY with the method read_datalines.
+###  If a start_step is not specified the file is read from the current position.
+###  This allows one to read the file in blocks.
+### ###############################################################################
+###  The input file should look like this:
+###
+###  # COMMENT LINE
+###  # COMMENT LINE
+###  # COMMENT LINE
+###  Step Temp TotEng Press c_flux[1] c_flux[2] c_flux[3] c_stress[1] c_stress[2]
+###  0 257.6477 -1085.7346 -1944.803 -129.20254 124.70804 -200.42864 -64.236389 -134.0399
+###  1 247.37505 -1085.734 -1909.333 -133.77141 124.25897 -103.27461 -61.022597 -83.17237
+###  2 238.37359 -1087.9214 -1874.56 -138.58616 115.84038 -5.7728078 -58.471318 -74.51758
+###  etc.
+### ###############################################################################
+###   example:
+###      jfile = TableFile(file)
+###      jfil.read_datalines(NSTEPS=100, start_step=0, select_ckeys=['Step', 'Temp', 'flux'])
+###      print(jfile.data)
+################################################################################
+
+from io import BytesIO, StringIO, TextIOBase
+from time import time
+from typing import Any
+
+import numpy as np
+
+from sportran.utils import log
+
+
+def is_string(string: str) -> bool:
+    try:
+        float(string)
+    except ValueError:
+        return True
+    return False
+
+
+def is_vector_variable(string: str) -> int:
+    bracket = string.rfind("[")
+    if bracket == -1:
+        bracket = 0
+    return bracket
+
+
+def _get_file_length(f) -> int:
+    i = -1
+    for i, line in enumerate(f, 1):
+        pass
+    return i
+
+
+def file_length(file: str | bytes) -> int:
+    i = -1
+    if isinstance(file, bytes):
+        buf = BytesIO(file)
+        i = _get_file_length(buf)
+        buf.close()
+    elif isinstance(file, str):
+        with open(file) as fh:
+            i = _get_file_length(fh)
+    else:
+        raise ValueError("Unsupported data type for file: {!r}".format(type(file)))
+
+    return i
+
+
+def _get_data_length(f) -> int:
+    i = 0
+    while is_string(f.readline().split()[0]):  # skip text lines
+        pass
+    for i, line in enumerate(f, 2):
+        pass
+
+    return i
+
+
+def data_length(file: str | bytes) -> int:
+    i = 0
+
+    if isinstance(file, bytes):
+        buf = BytesIO(file)
+        i = _get_data_length(buf)
+        buf.close()
+    elif isinstance(file, str):
+        with open(file) as fh:
+            i = _get_data_length(fh)
+    else:
+        raise ValueError("Unsupported data type for file: {!r}".format(type(file)))
+
+    return i
+
+
+class TableFile(object):
+    """
+    Table-style file reader that can be processed in blocks.
+
+    Example:
+      jfile = TableFile(data_file) jfile.read_datalines(NSTEPS=100,
+      select_ckeys=['Step', 'Temp', 'flux']) print(jfile.data)
+
+    Variables (columns) are organized into a dictionary according to the column headers.
+    LAMMPS-style vector variable headers can be grouped. Prefixes ``c_`` and ``v_`` are
+    stripped when present.
+
+    Input file format
+    -----------------
+
+    # COMMENT LINE # COMMENT LINE # COMMENT LINE Step Temp TotEng Press c_flux[1]
+    c_flux[2] c_flux[3] c_stress[1] c_stress[2] 0 257.6477 -1085.7346 -1944.803
+    -129.20254 124.70804 -200.42864 -64.236389 -134.0399 1 247.37505 -1085.734 -1909.333
+    -133.77141 124.25897 -103.27461 -61.022597 -83.17237 2 238.37359 -1087.9214 -1874.56
+    -138.58616 115.84038 -5.7728078 -58.471318 -74.51758 etc.
+    """
+
+    def __init__(
+        self,
+        data_file: str | bytes,
+        select_ckeys: list[str] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Initialize a ``TableFile`` reader.
+
+        Keyword arguments:
+            ``group_vectors`` [default: ``True``] ``GUI`` [default: ``False``]
+            ``print_elapsed`` [default: ``True``]
+        """
+
+        if not isinstance(data_file, (bytes, str)):
+            raise ValueError(
+                "Unsupported dat type for file: {}".format(type(data_file))
+            )
+
+        self.data_file = data_file
+        self.select_ckeys = select_ckeys
+        group_vectors = kwargs.get("group_vectors", True)
+        self._GUI = kwargs.get("GUI", False)
+        self._print_elapsed = kwargs.get("print_elapsed", True)
+        if self._GUI:
+            global FloatProgress, display
+            from IPython.display import display
+            from ipywidgets import FloatProgress
+
+        self._open_file()
+        self._read_ckeys(group_vectors)
+        self.ckey: dict[str, np.ndarray] = {}
+        self.MAX_NSTEPS = data_length(self.data_file)
+        log.write_log("Data length = ", self.MAX_NSTEPS)
+        return
+
+    def __repr__(self) -> str:
+        msg = (
+            "TableFile:\n"
+            + "  file:      {!r}\n".format(self.data_file)
+            + "  all_ckeys:     {}\n".format(self.all_ckeys)
+            + "  select_ckeys:  {}\n".format(self.select_ckeys)
+            + "  used ckey:     {}\n".format(self.ckey)
+            + "  start pos:     {}\n".format(self._start_byte)
+            + "  current pos:   {}\n".format(self.file.tell())
+        )
+        return msg
+
+    def _open_file(self) -> None:
+        if isinstance(self.data_file, bytes):
+            self.file: TextIOBase = StringIO(
+                BytesIO(self.data_file).read().decode("utf-8")
+            )
+        elif isinstance(self.data_file, str):
+            try:
+                self.file = open(self.data_file, "r")
+            except Exception:
+                raise ValueError("File does not exist.")
+        return
+
+    def _read_ckeys(self, group_vectors: bool = True) -> None:
+        """Read the column keys. If group_vectors=True the vector ckeys are grouped
+        togheter"""
+        self.all_ckeys = {}
+        self.header = ""
+        while True:
+            line = self.file.readline()
+            if len(line) == 0:  # EOF
+                raise RuntimeError("Reached EOF, no ckeys found.")
+            values = np.array(line.split())
+            # text line: read variables names and save indexes in ckey
+            if is_string(values[0]) and (values[0].find("#") < 0):
+                self.header += line[:-1]
+                for i in range(len(values)):
+                    if group_vectors:
+                        bracket = is_vector_variable(
+                            values[i]
+                        )  # position of left square bracket
+                    else:
+                        bracket = 0
+                    if bracket == 0:  # the variable is a scalar
+                        key = str(values[i])
+                        if key[:2] == "c_":  # remove 'c_' if present
+                            key = key[2:]
+                        self.all_ckeys[key] = np.array([i])
+                    else:  # the variable is a vector
+                        key = str(values[i][:bracket])  # name of vector
+                        if key[:2] == "c_":  # remove 'c_' if present
+                            key = key[2:]
+                        vecidx = int(values[i][bracket + 1 : -1])  # current index
+                        if (
+                            key in self.all_ckeys
+                        ):  # if this vector is already defined, add this component
+                            if vecidx > self.all_ckeys[key].size:
+                                self.all_ckeys[key] = np.resize(
+                                    self.all_ckeys[key], vecidx
+                                )
+                            self.all_ckeys[key][vecidx - 1] = i
+                        else:  # if it is not, define a vector
+                            self.all_ckeys[key] = np.array([0] * vecidx)
+                            self.all_ckeys[key][-1] = i
+                self._start_byte = self.file.tell()
+                break
+            else:
+                self.header += line
+        log.write_log(self.header)
+        log.write_log(" #####################################")
+        log.write_log(
+            "  all_ckeys = ", sorted(self.all_ckeys.items(), key=lambda kv: kv[0])
+        )
+        log.write_log(" #####################################")
+        return
+
+    def _set_ckey(
+        self, select_ckeys: list[str] | None = None, max_vector_dim: int | None = None
+    ) -> None:
+        """Set the ckeys that have been selected, checking the available ones."""
+        if select_ckeys is not None:
+            self.select_ckeys = select_ckeys
+        self.ckey = {}
+        if self.select_ckeys is None:  # take all ckeys
+            self.ckey = self.all_ckeys
+        else:
+            for key in self.select_ckeys:  # take only the selected ckeys
+                value = self.all_ckeys.get(key, None)
+                if value is not None:
+                    self.ckey[key] = value[
+                        :max_vector_dim
+                    ]  # copy all indexes (up to max dimension for vectors)
+                else:
+                    log.write_log("Warning: ", key, "key not found.")
+        if len(self.ckey) == 0:
+            raise KeyError("No ckey set. Check selected keys.")
+        else:
+            log.write_log("  ckey = ", sorted(self.ckey.items(), key=lambda kv: kv[0]))
+        return
+
+    def _initialize_dic(self, NSTEPS: int | None = None) -> None:
+        """Initialize the data dictionary once the ckeys have been set."""
+        if not self.ckey:
+            raise ValueError("ckey not set.")
+        if NSTEPS is None:
+            NSTEPS = 1
+            self.dic_allocated = False
+        else:
+            self.dic_allocated = True
+        self.NSTEPS = 0
+        self.data = {}
+        for key, idx in self.ckey.items():
+            self.data[key] = np.zeros((NSTEPS, len(idx)))
+        return
+
+    def gotostep(self, start_step: int) -> None:
+        """Go to ``start_step`` in the time series (assuming step=1).
+
+        ``start_step = -1`` ignores repositioning and continues from current position.
+        """
+        if start_step >= 0:
+            self.file.seek(self._start_byte)
+            for i in range(start_step):  # advance of start_step-1 lines
+                self.file.readline()
+        return
+
+    def read_datalines(
+        self,
+        NSTEPS: int = 0,
+        start_step: int = -1,
+        select_ckeys: list[str] | None = None,
+        max_vector_dim: int | None = None,
+        even_NSTEPS: bool = True,
+    ) -> dict[str, np.ndarray] | None:
+        """Read selected data columns from the table file.
+
+        Parameters
+        ----------
+        NSTEPS
+            Number of steps to read (``0`` means read all remaining lines).
+        start_step
+            Starting step index (``-1`` continues from current position).
+        select_ckeys
+            Column keys to extract.
+        max_vector_dim
+            Maximum number of vector components to read.
+        even_NSTEPS
+            If true, keep an even number of samples.
+
+        Returns
+        -------
+        dict
+            Dictionary with selected columns.
+        """
+        if self._GUI:
+            progbar = FloatProgress(min=0, max=100)  # type: ignore[name-defined]
+            display(progbar)  # type: ignore[name-defined]
+        start_time = time()
+        if NSTEPS == 0:
+            NSTEPS = self.MAX_NSTEPS
+        self._set_ckey(select_ckeys, max_vector_dim)  # set the ckeys to read
+        self._initialize_dic(NSTEPS)  # allocate dictionary
+        self.gotostep(start_step)  # jump to the starting step
+
+        # read NSTEPS of the file
+        progbar_step = max(100000, int(0.005 * NSTEPS))
+        for step in range(NSTEPS):
+            line = self.file.readline()
+            if len(line) == 0:  # EOF
+                log.write_log("Warning:  reached EOF.")
+                break
+            values = np.array(line.split())
+            for key, idx in self.ckey.items():  # save the selected columns
+                self.data[key][step, :] = np.array(list(map(float, values[idx])))
+            if (step + 1) % progbar_step == 0:
+                if self._GUI:
+                    progbar.value = float(step + 1) / NSTEPS * 100.0
+                    progbar.description = "{:6.2f}%".format(progbar.value)
+                else:
+                    log.write_log(
+                        "    step = {:9d} - {:6.2f}% completed".format(
+                            step + 1, float(step + 1) / NSTEPS * 100.0
+                        )
+                    )
+
+        if self._GUI:
+            progbar.close()
+
+        # check number of steps read, keep an even number of steps
+        if step + 1 < NSTEPS:
+            if step == 0:
+                log.write_log("WARNING:  no step read.")
+                NSTEPS = 0
+            else:
+                log.write_log("Warning:  less steps read.")
+                NSTEPS = step + 1
+        if even_NSTEPS:
+            if NSTEPS % 2 == 1:
+                NSTEPS = NSTEPS - 1
+
+        # free not used memory
+        for key, idx in self.ckey.items():
+            self.data[key] = self.data[key][:NSTEPS, :]
+        log.write_log("  ( %d ) steps read." % (NSTEPS))
+        self.NSTEPS = NSTEPS
+
+        if self._print_elapsed:
+            log.write_log("DONE.  Elapsed time: ", time() - start_time, "seconds")
+        return self.data

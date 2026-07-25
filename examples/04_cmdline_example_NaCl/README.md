@@ -1,8 +1,8 @@
 # Example 4: command line (NaCl)
 
-In this example we perform the same analysis that is performed in the correspondent [example notebook](../02_example_cepstrum_doublecomp_NaCl.ipynb), but using the command-line interface.
+In this example we perform the same analysis as the corresponding example notebook (`example_cepstrum_doublecomp_NaCl.ipynb`), but using the command-line interface.
 
-Simply run, after installing the package, the following command (see [`run_example.sh`](run_example.sh)):
+Simply run, after installing the package, the following command:
 
 ```bash
 sportran-analysis ../data/NaCl/NaCl.dat --input-format table -k flux -j 'vcm[1]' -C heat -u metal -t 5.0 --VOLUME 65013.301261 --param-from-input-file-column Temp TEMPERATURE -w 0.1 --FSTAR 14.0 -r
@@ -24,7 +24,7 @@ The options have the following meaning:
 | `--FSTAR 14.0` | set the $f^*$ cutoff frequency to 14.0THz |
 | `-r` | resample the time-series according to the value of $f^*$ specified with `--FSTAR` |
 
-The [output](output_ref.log) of the program in the terminal is:
+The terminal output of the program is:
 
 ```text
  Input file (table):      ../data/NaCl/NaCl.dat
@@ -99,6 +99,6 @@ Using multicomponent code.
 -----------------------------------------------------
 ```
 
-The program outputs raw data and some [PDF plots](output_ref.plots.pdf).
+The program outputs raw data and PDF plots.
 
 In this example the output files are called `"output.*"`.

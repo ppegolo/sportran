@@ -12,7 +12,6 @@ Introduction
 .. toctree::
    README.md
    README_GUI.md
-   CONTRIBUTING.md
 
 Examples
 ========
@@ -25,13 +24,14 @@ These examples show how to use the sportran package in a Python script, step by 
 .. toctree::
    example_cepstrum_singlecomp_silica
    example_cepstrum_doublecomp_NaCl
+   example_thermoelectric_wishart
    example_input_formats
 
 Command line examples
 ---------------------
 
 These examples show how to use the command line program sportran-analysis (analysis.py) to perform cepstral analysis in a straightforward way. This is an expedient tool to analyse a time series using predefined parameters. Results are produced in the form of several text/binary files and pdf plots.
-You can find the examples in the `repository <https://github.com/sissaschool/sportran/tree/develop/examples>`_. 
+You can find the examples in the `repository <https://github.com/sissaschool/sportran/tree/develop/examples>`_.
 
 .. toctree::
    EXAMPLE_SILICA.md
