@@ -612,8 +612,27 @@ class MaxLikeFilter:
         else:
             detX = np.linalg.det(X)
 
-        invV = np.linalg.inv(V)
-        detV = np.linalg.det(V)
+        # V is L^T L with L upper-triangular from the model (`scale_matrix`), so it is
+        # positive SEMI-definite by construction and turns singular exactly when a
+        # Cholesky diagonal crosses zero. BFGS's line search does step there: on a
+        # 50001-frequency thermoelectric fit it happened on 26 of 110114 evaluations
+        # (0.02%), while the OPTIMUM was comfortably non-singular (min det 0.11 over all
+        # frequencies). Such a point is INFEASIBLE, not fatal -- returning +inf, since
+        # this function is the NEGATIVE log-likelihood being minimised, makes the line
+        # search backtrack. Previously the LinAlgError propagated and killed the fit, so
+        # one bad trial step cost the row its answer.
+        #
+        # Deliberately the SMALLEST possible change: the arithmetic below is untouched,
+        # so every fit that used to succeed returns bit-identical numbers and only the
+        # fits that used to CRASH behave differently. A stabler logdet (via the Cholesky
+        # factor) would be a better numerical choice in isolation, but it would perturb
+        # every existing result in the last digits, and same-pressure junction legs have
+        # to stay numerically identical to each other.
+        try:
+            invV = np.linalg.inv(V)
+            detV = np.linalg.det(V)
+        except np.linalg.LinAlgError:
+            return np.inf
 
         trinvV_X = opt_einsum.contract("wab,wba->w", invV, X)
 
