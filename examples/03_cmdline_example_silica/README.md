@@ -1,8 +1,8 @@
 # Example 3: command line (silica)
 
-In this example we perform the same analysis that is performed in the correspondent [example notebook](../01_example_cepstrum_singlecomp_silica.ipynb), but using the command-line interface.
+In this example we perform the same analysis as the corresponding example notebook (`example_cepstrum_singlecomp_silica.ipynb`), but using the command-line interface.
 
-Simply run, after installing the package, the following command (see [`run_example.sh`](run_example.sh)):
+Simply run, after installing the package, the following command:
 
 ```bash
 sportran-analysis ../data/Silica/Silica.dat --input-format table -k flux1 -C heat -u metal -t 1.0 --VOLUME 3130.431110818 --param-from-input-file-column Temp TEMPERATURE -w 0.1 --FSTAR 28.0 -r
@@ -23,7 +23,7 @@ The options have the following meaning:
 | `--FSTAR 28.0` | set the $f^*$ cutoff frequency to 28.0THz |
 | `-r` | resample the time-series according to the value of $f^*$ specified with `--FSTAR` |
 
-The [output](output_ref.log) of the program in the terminal is:
+The terminal output of the program is:
 
 ```text
  Input file (table):      ../data/Silica/Silica.dat
@@ -90,6 +90,6 @@ Using single component code.
 -----------------------------------------------------
 ```
 
-The program outputs raw data and some [PDF plots](output_ref.plots.pdf).
+The program outputs raw data and PDF plots.
 
 In this example the output files are called `"output.*"`.

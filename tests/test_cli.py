@@ -1,14 +1,22 @@
 # -*- coding: utf-8 -*-
 
+import re
+
 import pytest
 import numpy as np
+
+_MATPLOTLIB_FONT_CACHE_RE = re.compile(r"^Matplotlib is building the font cache.*\n?", re.MULTILINE)
+
+
+def _strip_font_cache(msg: str) -> str:
+    return _MATPLOTLIB_FONT_CACHE_RE.sub("", msg)
 
 
 @pytest.fixture
 def run_cli(testdir, filepath_tests):
 
     def do_run(*args):
-        args = [filepath_tests + '/../sportran/analysis.py'] + list(args)
+        args = [filepath_tests + '/../src/sportran/analysis.py'] + list(args)
         return testdir.run(*args)
 
     return do_run
@@ -26,7 +34,7 @@ def test_cli_NaCl(tmpdir, run_cli, data_NaCl_path, num_regression, file_regressi
     with open(str(tmpdir.join('output.log'))) as l:
         file_regression.check(l.read(), basename='output.log')
     file_regression.check(output.stdout.str(), basename='stdout')
-    file_regression.check(output.stderr.str(), basename='stderr')
+    file_regression.check(_strip_font_cache(output.stderr.str()), basename='stderr')
     readed = {}
     for f in file_list:
         file_out = tmpdir.join(f)
@@ -47,7 +55,7 @@ def test_cli_NaCl_no_w(tmpdir, run_cli, data_NaCl_path, num_regression, file_reg
     with open(str(tmpdir.join('output_no_w.log'))) as l:
         file_regression.check(l.read(), basename='output_no_w.log')
     file_regression.check(output.stdout.str(), basename='stdout_no_w')
-    file_regression.check(output.stderr.str(), basename='stderr_no_w')
+    file_regression.check(_strip_font_cache(output.stderr.str()), basename='stderr_no_w')
     readed = {}
     for f in file_list:
         file_out = tmpdir.join(f)
@@ -68,7 +76,7 @@ def test_cli_bin_output_NaCl(tmpdir, run_cli, data_NaCl_path, num_regression, fi
     with open(str(tmpdir.join('output.log'))) as l:
         file_regression.check(l.read(), basename='output.log')
     file_regression.check(output.stdout.str(), basename='stdout')
-    file_regression.check(output.stderr.str(), basename='stderr')
+    file_regression.check(_strip_font_cache(output.stderr.str()), basename='stderr')
     readed = {}
     for f in file_list:
         file_out = tmpdir.join(f)

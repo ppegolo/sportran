@@ -103,5 +103,16 @@ ENV/
 # mypy
 .mypy_cache/
 
+# ruff
+.ruff_cache/
+
+# pytest
+.pytest_cache/
+
+# docs autosummary
+docs/source/_autosummary/
+
 # vi swap files
 *.swp
+.DS_Store
+tests/new_data.npy

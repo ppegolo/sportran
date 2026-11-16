@@ -5,10 +5,10 @@ A code to estimate transport coefficients from the cepstral analysis of a multi-
 [![PyPI version](https://badge.fury.io/py/sportran.svg)](https://badge.fury.io/py/sportran)
 [![Documentation Status](https://readthedocs.org/projects/sportran/badge/?version=latest)](https://sportran.readthedocs.io/en/latest/?badge=latest)
 
-### Documentation
+## Documentation
 https://sportran.readthedocs.io
 
-### References
+## References
  - [Ercole L., Bertossa R., Bisacchi S., and Baroni S., "_SporTran: a code to estimate transport coefficients from the cepstral analysis of (multivariate) current time series_", *Comput. Phys. Commun.*, 108470](https://doi.org/10.1016/j.cpc.2022.108470), [*arXiv*:2202.11571 (2022)](https://arxiv.org/abs/2202.11571)
  - (cepstral analysis) [Ercole, Marcolongo, Baroni, *Sci. Rep.* **7**, 15835 (2017)](https://doi.org/10.1038/s41598-017-15843-2)
  - (multicomponent systems) [Bertossa, Grasselli, Ercole, Baroni, *Phys. Rev. Lett.* **122**, 255901 (2019)](https://doi.org/10.1103/PhysRevLett.122.255901) ([arXiv](https://arxiv.org/abs/1808.03341))
@@ -20,17 +20,17 @@ Developed by Loris Ercole, Riccardo Bertossa, Sebastiano Bisacchi under the supe
 
 ---
 
-### Usage
-There is a [**GUI**](README_GUI.md) that you can try after installing the package. Click [here](README_GUI.md) for instructions.
+## Usage
+There is a GUI that you can try after installing the package. See `README_GUI.md` for instructions.
 
 The code can be used as a **library**, for example in a Jupyter notebook.
-In the [`examples`](examples/) folder you can find some examples.
+In the `examples/` folder you can find some examples.
 
 Alternatively, you can run the code `analysis.py` from the **command line** without any installation procedure.
 It can execute most of the cepstral analysis routines, returning the results in a series of data files and PDF plots.
-See the [`examples/example_commandline_NaCl`](examples/example_commandline_NaCl/) folder and the help (`python analysis.py --help`) for more information.
+See the `examples/04_cmdline_example_NaCl/` folder and the help (`sportran-analysis --help`) for more information.
 
-### Requirements
+## Requirements
  - numpy
  - scipy
  - matplotlib
@@ -39,7 +39,7 @@ See the [`examples/example_commandline_NaCl`](examples/example_commandline_NaCl/
  - pillow
 
 
-### Installation
+## Installation
   You can simply pip-install SporTran downloading it from PyPI with `pip install sportran`.
 
   Alternatively:
@@ -54,5 +54,15 @@ pip install .
 
   The Graphical User Interface can be started with the command `sportran-gui`.
 
-### Issues
+## Development
+
+- Minimum supported Python version is 3.10.
+- Formatting and autofixes: `tox -e format`
+- Linting and type checks: `tox -e lint`
+- Type checks only (same scope as lint): `tox -e type`
+- Test suite: `tox -e py310` (or `tox -e py311`, `tox -e py312`)
+- Documentation build: `tox -e docs`
+- Notebook tests: `tox -e notebooks`
+
+## Issues
   You are strongly encouraged to report any issue on the [official](https://github.com/sissaschool/sportran/issues) GitHub issues page.
