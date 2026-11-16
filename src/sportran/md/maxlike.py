@@ -642,13 +642,17 @@ class MaxLikeFilter:
         # Number of degrees of freedom
         dof = 2 * int(ell - M + 1)
 
-        # Model for the spectrum
+        # Model for the log-spectrum
         spline = model(omega_fixed, w)
-        spectrum = np.exp(spline(omega))
+        log_spectrum = spline(omega)
 
-        # Log-likelihood of data = spectrum * chi^2(dof) / dof
+        # Log-likelihood of data = spectrum * chi^2(dof) / dof, up to a constant.
+        # Taking the logarithms term by term avoids the overflow of
+        # data ** (dof - 2) and spectrum ** dof for large PSD values or many dof.
         log_pdf = 0.5 * (
-            np.log(data ** (dof - 2) / spectrum**dof) - dof * data / spectrum
+            (dof - 2) * np.log(data)
+            - dof * log_spectrum
+            - dof * data * np.exp(-log_spectrum)
         )
 
         # Return the negative log-likelihood
